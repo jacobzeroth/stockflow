@@ -1,0 +1,2320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>StockFlow — Inventory control</title>
+<meta name="description" content="Inventory control for small teams: stock ledger, reorder alerts, suppliers and reporting." />
+<meta name="robots" content="noindex" />
+<style>
+  :root{
+    color-scheme: dark;
+    --ink:#08090c; --panel:#0f1218; --panel2:#141922; --line:#232a35;
+    --text:#e8edf5; --muted:#8b97a8; --brand:#164BFF;
+    --ok:#35d39a; --warn:#f2c14e; --bad:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--ink)}
+  body{
+    color:var(--text);
+    font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  button,input,select,textarea{font:inherit;color:inherit}
+  h1,h2,h3,p,dl,dd{margin:0}
+  ::selection{background:rgba(22,75,255,.35)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--ink)}
+  ::-webkit-scrollbar-thumb{background:#262e3a;border-radius:99px;border:2px solid var(--ink)}
+
+  .app{min-height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+  .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;border-right:1px solid var(--line);background:#0a0c10}
+  .brand{display:flex;align-items:center;gap:10px;padding:20px 18px}
+  .brand .mark{width:32px;height:32px;border-radius:9px;background:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+  .brand b{display:block;font-size:14px;color:#fff;letter-spacing:-.01em}
+  .brand span{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .nav{flex:1;padding:4px 10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:13.5px;transition:.15s}
+  .nav a:hover{background:var(--panel2);color:var(--text)}
+  .nav a.active{background:rgba(22,75,255,.12);color:#fff;font-weight:600;box-shadow:inset 0 0 0 1px rgba(22,75,255,.3)}
+  .nav a .ic{width:16px;height:16px;flex:0 0 16px;opacity:.9}
+  .nav a.active .ic{color:#7b9bff}
+  .side-foot{border-top:1px solid var(--line);padding:12px}
+  .who{display:flex;align-items:center;gap:9px;padding:4px 6px 10px}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-size:12px;font-weight:600;box-shadow:inset 0 0 0 1px var(--line)}
+  .who b{display:block;font-size:12px;font-weight:600}
+  .who span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+
+  .main{min-width:0}
+  .mnav{display:none;gap:4px;overflow-x:auto;padding:8px 12px;border-bottom:1px solid var(--line);background:#0a0c10}
+  .mnav a{white-space:nowrap;padding:6px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:12px}
+  .mnav a.active{background:rgba(22,75,255,.15);color:#fff}
+  .wrap{max-width:1200px;margin:0 auto;padding:26px 28px 48px}
+
+  .head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:20px}
+  .head h1{font-size:20px;font-weight:600;letter-spacing:-.02em;color:#fff}
+  .head p{font-size:13px;color:var(--muted);margin-top:4px}
+  .head .actions{display:flex;flex-wrap:wrap;gap:8px}
+
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 20px 40px -30px #000}
+  .card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;border-bottom:1px solid var(--line)}
+  .card-h h2{font-size:13px;font-weight:600;color:#fff}
+  .card-h span{font-size:11.5px;color:var(--muted)}
+  .pad{padding:16px}
+
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .stat{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:14px 15px}
+  .stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:600}
+  .stat .v{font-size:23px;font-weight:600;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums}
+  .stat .h{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .stat.ok .v{color:var(--ok)} .stat.warn .v{color:var(--warn)} .stat.bad .v{color:var(--bad)} .stat.brand .v{color:#7b9bff}
+
+  .cols{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-top:18px}
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .stack{display:flex;flex-direction:column;gap:18px}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:600;padding:9px 15px;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th.r{text-align:right}
+  tbody td{padding:11px 15px;border-bottom:1px solid rgba(35,42,53,.6);font-size:13px;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr.hover:hover{background:rgba(20,25,34,.65)}
+  td.r{text-align:right;font-variant-numeric:tabular-nums}
+  .sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+  .num{font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .white{color:#fff}
+  .nowrap{white-space:nowrap}
+  .linkbtn{background:none;border:0;padding:0;cursor:pointer;color:#fff;font-weight:500;text-align:left}
+  .linkbtn:hover{color:#9db4ff}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;border:1px solid;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+  .pill.ok{border-color:#1d4d3b;background:#0d241c;color:#7fe0bb}
+  .pill.low{border-color:#5a481f;background:#241f0e;color:#f6ce74}
+  .pill.out{border-color:#5c2a30;background:#241014;color:#ff9c9c}
+  .pill.in{border-color:#1d4d3b;background:#0d241c;color:#7fe0bb}
+  .pill.adjust{border-color:#5a481f;background:#241f0e;color:#f6ce74}
+  .pill.outm{border-color:#3a3f57;background:#151a2a;color:#a9b6ff}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;border:1px solid transparent;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;transition:.15s;white-space:nowrap}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.primary{background:var(--brand);color:#fff}
+  .btn.primary:hover{background:#2a5cff}
+  .btn.ghost{background:var(--panel2);border-color:var(--line);color:var(--text)}
+  .btn.ghost:hover{border-color:#33404f;background:#19202a}
+  .btn.danger{background:#2a161a;border-color:#5c2a30;color:#ff9c9c}
+  .btn.danger:hover{background:#341a1f}
+  .btn.sm{padding:4px 9px;font-size:11.5px;border-radius:7px}
+  .btn.icon{padding:5px 8px}
+
+  .label{display:block;margin-bottom:5px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+  .input,select.input,textarea.input{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:8px 10px;font-size:13px;color:var(--text);outline:none;transition:.15s}
+  .input::placeholder{color:rgba(139,151,168,.65)}
+  .input:focus{border-color:rgba(22,75,255,.65);box-shadow:0 0 0 3px rgba(22,75,255,.18)}
+  textarea.input{resize:vertical;min-height:60px}
+  select.input{appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238b97a8'%3E%3Cpath d='M5.5 7.5 10 12l4.5-4.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;background-size:14px}
+  .field{margin-bottom:12px}
+  .row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .row4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+
+  .flash{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid;border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:16px}
+  .flash.err{border-color:#5c2a30;background:#241014;color:#ffb3b3}
+  .flash.ok{border-color:#1d4d3b;background:#0d241c;color:#8de8c2}
+  .flash button{background:none;border:0;color:inherit;cursor:pointer;opacity:.7;font-size:15px;line-height:1}
+
+  .empty{padding:34px 20px;text-align:center}
+  .empty b{display:block;font-size:13px;color:#fff;margin-bottom:4px}
+  .empty p{font-size:12.5px;color:var(--muted);max-width:340px;margin:0 auto}
+
+  .bars{display:flex;flex-direction:column;gap:12px}
+  .bar .lbl{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;margin-bottom:5px}
+  .bar .lbl span:first-child{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar .lbl span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .track{height:6px;border-radius:99px;background:var(--panel2);overflow:hidden}
+  .fill{height:100%;border-radius:99px;background:var(--brand)}
+
+  .auth{min-height:100vh;display:grid;place-items:center;padding:28px 16px;
+    background:radial-gradient(circle at 12% -10%,rgba(22,75,255,.16),transparent 42%),linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+    background-size:auto,48px 48px,48px 48px}
+  .authbox{width:100%;max-width:390px}
+  .authbrand{display:flex;align-items:center;gap:11px;margin-bottom:26px}
+  .authbrand .mark{width:40px;height:40px;border-radius:11px;background:var(--brand);display:grid;place-items:center;font-weight:700;color:#fff}
+  .authcard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:22px;box-shadow:0 30px 60px -40px #000}
+  .authcard h1{font-size:17px;font-weight:600;color:#fff;margin-bottom:4px}
+  .authcard .lede{font-size:13px;color:var(--muted);margin-bottom:18px}
+  .authnote{margin-top:18px;text-align:center;font-size:11.5px;color:var(--muted)}
+
+  .crumb{font-size:11.5px;color:var(--muted);margin-bottom:14px}
+  .crumb a{color:var(--muted);text-decoration:none}
+  .crumb a:hover{color:var(--text)}
+
+  .banner{border-radius:9px;padding:10px 13px;font-size:12.5px;margin-bottom:16px;border:1px solid}
+  .banner.warn{border-color:#5a481f;background:#201c0d;color:#f6ce74}
+
+  .group{margin-bottom:18px}
+  .group-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;border-bottom:1px solid var(--line)}
+  .group-h h2{font-size:13px;font-weight:600;color:#fff}
+  .group-h p{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+  .kv{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid rgba(35,42,53,.6);font-size:13px}
+  .kv:last-child{border-bottom:0}
+  .kv dt{color:var(--muted)}
+  .kv dd{text-align:right;color:var(--text)}
+
+  .divider{height:1px;background:var(--line);margin:16px 0}
+  .note{font-size:11.5px;color:var(--muted);margin-top:12px}
+  .note b{color:var(--text);font-weight:600}
+
+  details.edit{border-top:1px solid var(--line);padding:0}
+  details.edit summary{cursor:pointer;padding:12px 15px;font-size:12.5px;font-weight:600;color:#fff;list-style:none}
+  details.edit summary::-webkit-details-marker{display:none}
+  details.edit[open] summary{border-bottom:1px solid var(--line)}
+  details.edit .inner{padding:15px}
+
+  .toast-wrap{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 32px))}
+  .toast{border:1px solid var(--line);background:#12161f;border-radius:9px;padding:10px 13px;font-size:12.5px;box-shadow:0 18px 40px -20px #000;animation:in .18s ease-out}
+  .toast.err{border-color:#5c2a30;color:#ffb3b3}
+  .toast.ok{border-color:#1d4d3b;color:#8de8c2}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  @media (max-width:980px){
+    .app{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .mnav{display:flex}
+    .wrap{padding:18px 14px 40px}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .cols,.cols-2{grid-template-columns:1fr}
+    .row3,.row4{grid-template-columns:1fr}
+    .row2{grid-template-columns:1fr}
+  }
+  @media print{
+    .sidebar,.mnav,.no-print,.head .actions{display:none!important}
+    .app{display:block}
+    .wrap{padding:0;max-width:none}
+    .card{border-color:#ddd;box-shadow:none;background:#fff;color:#111}
+    body{background:#fff;color:#111}
+    thead th,tbody td{color:#111;border-color:#ddd}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast-wrap" id="toasts"></div>
+<noscript><p style="padding:24px">StockFlow needs JavaScript enabled.</p></noscript>
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ constants */
+var DB_KEY = "stockflow.v1";
+var SESSION_KEY = "sf.session";
+var SESSION_HOURS = 12;
+var PBKDF2_ITERATIONS = 210000;
+var CURRENCY_DEFAULT = "EUR";
+
+var state = {
+  db: null,
+  user: null,
+  filters: { productSearch: "", productCategory: "all", productStatus: "all", movementProduct: "", movementKind: "all", movementFrom: "", movementTo: "", reportFrom: "", reportTo: "" },
+  editSupplier: null,
+  route: []
+};
+
+/* ------------------------------------------------------------------ helpers */
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function uid() { return (crypto && crypto.randomUUID) ? crypto.randomUUID() : "id-" + Date.now() + "-" + Math.random().toString(16).slice(2); }
+function esc(value) {
+  return String(value === null || value === undefined ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function round2(n) { return Math.round(n * 100) / 100; }
+function toCents(value) { var n = Number(value); return isFinite(n) ? Math.round(n * 100) : 0; }
+function currency() { return (state.db && state.db.settings && state.db.settings.currency) || CURRENCY_DEFAULT; }
+function money(cents) {
+  var value = (cents || 0) / 100;
+  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency(), maximumFractionDigits: 2 }).format(value); }
+  catch (e) { return value.toFixed(2); }
+}
+function num(n) { try { return new Intl.NumberFormat("en-GB").format(n); } catch (e) { return String(n); } }
+function nowISO() { return new Date().toISOString(); }
+function fmtDate(iso) {
+  var d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+function fmtWhen(iso) {
+  var d = new Date(iso);
+  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+function isoDay(date) {
+  var d = date || new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function daysAgo(n) { return isoDay(new Date(Date.now() - n * 86400000)); }
+function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+function b64encode(buf) {
+  var bytes = new Uint8Array(buf), out = "";
+  for (var i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+  return btoa(out);
+}
+function b64decode(text) {
+  var raw = atob(text), bytes = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+/* ------------------------------------------------------------------ storage */
+function defaultDb() {
+  return {
+    version: 1,
+    createdAt: nowISO(),
+    settings: { currency: CURRENCY_DEFAULT, org: "Zeroth StockFlow" },
+    users: [],
+    products: [],
+    suppliers: [],
+    movements: [],
+    audit: []
+  };
+}
+
+function normaliseDb(raw) {
+  var db = raw && typeof raw === "object" ? raw : defaultDb();
+  db.settings = db.settings || { currency: CURRENCY_DEFAULT, org: "Zeroth StockFlow" };
+  if (!db.settings.currency) db.settings.currency = CURRENCY_DEFAULT;
+  if (!db.settings.org) db.settings.org = "Zeroth StockFlow";
+  ["users", "products", "suppliers", "movements", "audit"].forEach(function (key) {
+    if (!Array.isArray(db[key])) db[key] = [];
+  });
+  db.version = 1;
+  return db;
+}
+
+function loadDb() {
+  var raw;
+  try { raw = localStorage.getItem(DB_KEY); }
+  catch (e) { throw new Error("This browser is blocking local storage, so StockFlow cannot save data."); }
+  if (!raw) return defaultDb();
+  try { return normaliseDb(JSON.parse(raw)); }
+  catch (e) { throw new Error("The saved StockFlow data is corrupted. Restore it from a backup, or clear site data to start fresh."); }
+}
+
+function saveDb() {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(state.db)); }
+  catch (e) { throw new Error("Could not save: the browser storage is full. Export a backup and remove old records."); }
+}
+
+/* -------------------------------------------------------------------- audit */
+function logAudit(action, entity, entityId, detail) {
+  state.db.audit.unshift({
+    id: uid(),
+    at: nowISO(),
+    userId: state.user ? state.user.id : null,
+    userName: state.user ? state.user.name : "system",
+    action: action,
+    entity: entity,
+    entityId: entityId || null,
+    detail: detail || null
+  });
+  if (state.db.audit.length > 2000) state.db.audit.length = 2000;
+}
+
+/* ------------------------------------------------------------------- auth */
+function hashPassword(password, saltB64, iterations) {
+  if (!window.crypto || !crypto.subtle) {
+    return Promise.reject(new Error("This browser does not support the cryptography StockFlow needs. Open the file in a current Chrome, Edge or Firefox, or serve it over https://."));
+  }
+  var enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"])
+    .then(function (key) {
+      return crypto.subtle.deriveBits(
+        { name: "PBKDF2", salt: b64decode(saltB64), iterations: iterations || PBKDF2_ITERATIONS, hash: "SHA-256" },
+        key, 256
+      );
+    })
+    .then(function (bits) { return b64encode(bits); });
+}
+
+function createPasswordRecord(password) {
+  var salt = b64encode(crypto.getRandomValues(new Uint8Array(16)));
+  return hashPassword(password, salt, PBKDF2_ITERATIONS).then(function (hash) {
+    return { algo: "PBKDF2-SHA256", iterations: PBKDF2_ITERATIONS, salt: salt, hash: hash };
+  });
+}
+
+function verifyPassword(password, record) {
+  if (!record) return Promise.resolve(false);
+  return hashPassword(password, record.salt, record.iterations).then(function (hash) { return hash === record.hash; });
+}
+
+function readSession() {
+  var raw = null;
+  try { raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY); } catch (e) { raw = null; }
+  if (!raw) return null;
+  try {
+    var session = JSON.parse(raw);
+    if (!session || !session.userId || !session.exp || session.exp < Date.now()) return null;
+    return session;
+  } catch (e) { return null; }
+}
+
+function writeSession(userId) {
+  var session = { userId: userId, exp: Date.now() + SESSION_HOURS * 3600000 };
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* memory only */ }
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* memory only */ }
+  return session;
+}
+
+function clearSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+function userById(id) {
+  return state.db.users.filter(function (u) { return u.id === id; })[0] || null;
+}
+
+function currentUser() {
+  if (!state.user) return null;
+  var fresh = userById(state.user.id);
+  if (!fresh || fresh.active === false) return null;
+  return fresh;
+}
+
+function isOwner() { var u = currentUser(); return !!u && u.role === "owner"; }
+function isViewer() { var u = currentUser(); return !!u && u.role === "viewer"; }
+function canWrite() { var u = currentUser(); return !!u && u.role !== "viewer"; }
+
+/* ------------------------------------------------------------------ selectors */
+function onHand(productId) {
+  var total = 0;
+  for (var i = 0; i < state.db.movements.length; i++) {
+    if (state.db.movements[i].productId === productId) total += state.db.movements[i].qty;
+  }
+  return total;
+}
+
+function productsWithStock() {
+  return state.db.products.map(function (p) {
+    return Object.assign({}, p, { onHand: onHand(p.id) });
+  });
+}
+
+function statusOf(product) {
+  if (product.onHand <= 0) return "out";
+  if (product.onHand <= product.reorderLevel) return "low";
+  return "ok";
+}
+
+var STATUS_LABEL = { out: "Out of stock", low: "Low stock", ok: "In stock" };
+var KIND_LABEL = { in: "Received", out: "Issued", adjust: "Adjusted" };
+
+function supplierName(id) {
+  var supplier = state.db.suppliers.filter(function (s) { return s.id === id; })[0];
+  return supplier ? supplier.name : "";
+}
+
+function movementsDesc(filter) {
+  var list = state.db.movements.slice().sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+  if (!filter) return list;
+  return list.filter(function (m) {
+    if (filter.productId && m.productId !== filter.productId) return false;
+    if (filter.kind && filter.kind !== "all" && m.kind !== filter.kind) return false;
+    if (filter.from && m.at.slice(0, 10) < filter.from) return false;
+    if (filter.to && m.at.slice(0, 10) > filter.to) return false;
+    return true;
+  });
+}
+
+function productById(id) {
+  return state.db.products.filter(function (p) { return p.id === id; })[0] || null;
+}
+
+function categories() {
+  var seen = {};
+  state.db.products.forEach(function (p) { if (!p.archivedAt) seen[p.category] = true; });
+  return Object.keys(seen).sort();
+}
+
+/* ------------------------------------------------------------------- toasts */
+function toast(kind, message) {
+  var wrap = $("#toasts");
+  if (!wrap) return;
+  var el = document.createElement("div");
+  el.className = "toast " + (kind === "error" ? "err" : "ok");
+  el.setAttribute("role", kind === "error" ? "alert" : "status");
+  el.textContent = message;
+  wrap.appendChild(el);
+  setTimeout(function () { el.style.opacity = "0"; el.style.transition = "opacity .25s"; }, 4200);
+  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4600);
+}
+
+/* ------------------------------------------------------------------- csv */
+function parseCsv(text) {
+  var rows = [], row = [], field = "", quoted = false;
+  var input = text.replace(/^\uFEFF/, "");
+  for (var i = 0; i < input.length; i++) {
+    var ch = input.charAt(i);
+    if (quoted) {
+      if (ch === '"') {
+        if (input.charAt(i + 1) === '"') { field += '"'; i++; }
+        else quoted = false;
+      } else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (ch !== "\r") field += ch;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(function (cells) {
+    return cells.some(function (c) { return String(c).trim() !== ""; });
+  });
+}
+
+function toCsv(rows) {
+  return rows.map(function (row) {
+    return row.map(function (cell) {
+      var value = cell === null || cell === undefined ? "" : String(cell);
+      return /[",\n\r]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+    }).join(",");
+  }).join("\r\n");
+}
+
+function download(filename, text, type) {
+  var blob = new Blob([text], { type: type || "text/csv;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); if (a.parentNode) a.parentNode.removeChild(a); }, 600);
+}
+
+function stamp() { return isoDay(new Date()); }
+
+/* ------------------------------------------------------------------ mutations */
+function requireWrite() {
+  if (!canWrite()) throw new Error("Your role is read-only.");
+  if (!currentUser()) throw new Error("Your session expired. Sign in again.");
+}
+
+function commit(fn) {
+  fn();
+  saveDb();
+  render();
+}
+
+function readProductForm(form) {
+  var data = {
+    sku: (form.sku.value || "").trim().toUpperCase(),
+    name: (form.name.value || "").trim(),
+    category: (form.category.value || "").trim() || "General",
+    unit: (form.unit.value || "").trim() || "unit",
+    unitCost: toCents(form.unit_cost.value),
+    unitPrice: toCents(form.unit_price.value),
+    reorderLevel: Math.max(Math.trunc(Number(form.reorder_level.value) || 0), 0),
+    supplierId: form.supplier_id.value || null,
+    notes: (form.notes.value || "").trim() || null
+  };
+  if (!data.sku) throw new Error("SKU is required.");
+  if (data.name.length < 2) throw new Error("Product name is required.");
+  if (Number(form.unit_cost.value) < 0 || Number(form.unit_price.value) < 0) throw new Error("Cost and price cannot be negative.");
+  var clash = state.db.products.filter(function (p) {
+    return p.sku.toLowerCase() === data.sku.toLowerCase() && p.id !== form.dataset.id;
+  })[0];
+  if (clash) throw new Error("SKU " + data.sku + " is already used by " + clash.name + ".");
+  return data;
+}
+
+function createProduct(form) {
+  requireWrite();
+  var data = readProductForm(form);
+  var opening = Math.max(Math.trunc(Number(form.opening_stock.value) || 0), 0);
+  commit(function () {
+    var product = Object.assign({ id: uid(), createdAt: nowISO(), archivedAt: null }, data);
+    state.db.products.push(product);
+    if (opening > 0) {
+      state.db.movements.push({
+        id: uid(), productId: product.id, kind: "in", qty: opening,
+        unitCost: product.unitCost, reason: "Opening balance", reference: null, note: null,
+        userId: state.user.id, userName: state.user.name, at: nowISO()
+      });
+    }
+    logAudit("product.create", "product", product.id, { sku: product.sku, opening: opening });
+  });
+  toast("ok", data.name + " created.");
+  navigate("#/products");
+}
+
+function updateProduct(form) {
+  requireWrite();
+  var id = form.dataset.id;
+  var product = productById(id);
+  if (!product) throw new Error("Product not found.");
+  var data = readProductForm(form);
+  commit(function () {
+    Object.assign(product, data);
+    logAudit("product.update", "product", id, { sku: data.sku });
+  });
+  toast("ok", "Product updated.");
+  navigate("#/products/" + id);
+}
+
+function setArchived(id, archived) {
+  requireWrite();
+  var product = productById(id);
+  if (!product) return;
+  commit(function () {
+    product.archivedAt = archived ? nowISO() : null;
+    logAudit(archived ? "product.archive" : "product.restore", "product", id, { sku: product.sku });
+  });
+  toast("ok", archived ? product.name + " archived." : product.name + " restored.");
+}
+
+function recordMovement(input) {
+  requireWrite();
+  var product = productById(input.productId);
+  if (!product) throw new Error("Choose a product.");
+  if (product.archivedAt) throw new Error("This product is archived. Restore it before moving stock.");
+
+  var current = onHand(product.id);
+  var delta = 0;
+  var unitCost = null;
+
+  if (input.kind === "adjust") {
+    var counted = Math.trunc(Number(input.counted));
+    if (!isFinite(counted) || counted < 0) throw new Error("Enter the counted quantity.");
+    delta = counted - current;
+    if (delta === 0) throw new Error("Counted quantity matches stock on hand (" + current + "). Nothing to adjust.");
+  } else {
+    var qty = Math.trunc(Number(input.quantity));
+    if (!isFinite(qty) || qty <= 0) throw new Error("Quantity must be greater than zero.");
+    delta = input.kind === "in" ? qty : -qty;
+    if (input.kind === "in") {
+      var rawCost = input.unitCost === "" || input.unitCost === null || input.unitCost === undefined ? NaN : Number(input.unitCost);
+      unitCost = isFinite(rawCost) && rawCost >= 0 ? toCents(rawCost) : product.unitCost;
+    }
+  }
+
+  var next = current + delta;
+  if (next < 0) {
+    throw new Error("Not enough stock: " + product.name + " has " + current + " " + product.unit + (current === 1 ? "" : "s") + ", cannot remove " + Math.abs(delta) + ".");
+  }
+
+  commit(function () {
+    state.db.movements.push({
+      id: uid(),
+      productId: product.id,
+      kind: input.kind,
+      qty: delta,
+      unitCost: unitCost,
+      reason: input.reason || (input.kind === "in" ? "Stock received" : input.kind === "out" ? "Stock issued" : "Stock count"),
+      reference: input.reference || null,
+      note: input.note || null,
+      userId: state.user.id,
+      userName: state.user.name,
+      at: nowISO()
+    });
+    if (input.kind === "in" && unitCost !== null && delta > 0) {
+      var avg = (current * product.unitCost + delta * unitCost) / (current + delta);
+      product.unitCost = Math.round(avg);
+    }
+    logAudit("stock." + input.kind, "product", product.id, { delta: delta, reason: input.reason || null, balance: next });
+  });
+  toast("ok", "Movement recorded.");
+}
+
+function saveSupplier(form) {
+  requireWrite();
+  var id = form.dataset.id || null;
+  var name = (form.name.value || "").trim();
+  if (name.length < 2) throw new Error("Supplier name is required.");
+  var data = {
+    name: name,
+    contactName: (form.contact_name.value || "").trim() || null,
+    email: (form.email.value || "").trim() || null,
+    phone: (form.phone.value || "").trim() || null,
+    leadTimeDays: Math.max(Math.trunc(Number(form.lead_time_days.value) || 0), 0),
+    notes: (form.notes.value || "").trim() || null
+  };
+  state.editSupplier = null;
+  commit(function () {
+    if (id) {
+      var supplier = state.db.suppliers.filter(function (s) { return s.id === id; })[0];
+      if (supplier) Object.assign(supplier, data);
+      logAudit("supplier.update", "supplier", id, { name: name });
+    } else {
+      var created = Object.assign({ id: uid(), createdAt: nowISO(), archivedAt: null }, data);
+      state.db.suppliers.push(created);
+      logAudit("supplier.create", "supplier", created.id, { name: name });
+    }
+  });
+  toast("ok", id ? "Supplier updated." : "Supplier added.");
+}
+
+function setSupplierArchived(id, archived) {
+  requireWrite();
+  var supplier = state.db.suppliers.filter(function (s) { return s.id === id; })[0];
+  if (!supplier) return;
+  commit(function () {
+    supplier.archivedAt = archived ? nowISO() : null;
+    logAudit(archived ? "supplier.archive" : "supplier.restore", "supplier", id, { name: supplier.name });
+  });
+  toast("ok", archived ? "Supplier archived." : "Supplier restored.");
+}
+
+function importProducts(text) {
+  requireWrite();
+  var rows = parseCsv(text);
+  if (rows.length < 2) throw new Error("The file needs a header row and at least one product row.");
+  var header = rows[0].map(function (c) { return String(c).trim().toLowerCase(); });
+  if (header.indexOf("sku") < 0 || header.indexOf("name") < 0) throw new Error("Missing required column: sku and name.");
+  var created = 0, updated = 0, warnings = [];
+  commit(function () {
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      var get = function (key) {
+        var idx = header.indexOf(key);
+        return idx >= 0 ? String(row[idx] === undefined ? "" : row[idx]).trim() : "";
+      };
+      var sku = get("sku").toUpperCase();
+      var name = get("name");
+      if (!sku || !name) { warnings.push("Row " + (r + 1) + ": sku and name required"); continue; }
+      var supplierName = get("supplier");
+      var supplier = supplierName ? state.db.suppliers.filter(function (s) { return s.name.toLowerCase() === supplierName.toLowerCase(); })[0] : null;
+      if (supplierName && !supplier) warnings.push('Row ' + (r + 1) + ': supplier "' + supplierName + '" not found');
+      var existing = state.db.products.filter(function (p) { return p.sku.toLowerCase() === sku.toLowerCase(); })[0];
+      var payload = {
+        name: name,
+        category: get("category") || "General",
+        unit: get("unit") || "unit",
+        unitCost: toCents(get("unit_cost") || 0),
+        unitPrice: toCents(get("unit_price") || 0),
+        reorderLevel: Math.max(Math.trunc(Number(get("reorder_level") || 0)), 0),
+        supplierId: supplier ? supplier.id : (existing ? existing.supplierId : null),
+        notes: get("notes") || null
+      };
+      if (existing) {
+        Object.assign(existing, payload);
+        updated++;
+      } else {
+        var product = Object.assign({ id: uid(), sku: sku, createdAt: nowISO(), archivedAt: null }, payload);
+        state.db.products.push(product);
+        var opening = Math.max(Math.trunc(Number(get("opening_stock") || 0)), 0);
+        if (opening > 0) {
+          state.db.movements.push({
+            id: uid(), productId: product.id, kind: "in", qty: opening, unitCost: product.unitCost,
+            reason: "Opening balance (import)", reference: null, note: null,
+            userId: state.user.id, userName: state.user.name, at: nowISO()
+          });
+        }
+        created++;
+      }
+    }
+    logAudit("product.import", "product", null, { created: created, updated: updated });
+  });
+  toast("ok", "Import finished: " + created + " created, " + updated + " updated." + (warnings.length ? " " + warnings.length + " warning(s): " + warnings.slice(0, 3).join("; ") : ""));
+}
+
+function exportProducts() {
+  var rows = [["sku", "name", "category", "unit", "on_hand", "reorder_level", "unit_cost", "unit_price", "stock_value", "supplier", "archived"]];
+  productsWithStock().forEach(function (p) {
+    rows.push([p.sku, p.name, p.category, p.unit, p.onHand, p.reorderLevel, (p.unitCost / 100).toFixed(2), (p.unitPrice / 100).toFixed(2), (p.onHand * p.unitCost / 100).toFixed(2), supplierName(p.supplierId), p.archivedAt ? "yes" : "no"]);
+  });
+  download("stockflow-products-" + stamp() + ".csv", toCsv(rows));
+  toast("ok", "Products exported.");
+}
+
+function exportMovements() {
+  var list = movementsDesc({ productId: state.filters.movementProduct || null, kind: state.filters.movementKind, from: state.filters.movementFrom, to: state.filters.movementTo });
+  var rows = [["date", "sku", "product", "type", "change", "unit", "unit_cost", "reason", "reference", "note", "user"]];
+  list.forEach(function (m) {
+    var p = productById(m.productId);
+    rows.push([m.at, p ? p.sku : "", p ? p.name : "", m.kind, m.qty, p ? p.unit : "", m.unitCost === null ? "" : (m.unitCost / 100).toFixed(2), m.reason || "", m.reference || "", m.note || "", m.userName || ""]);
+  });
+  download("stockflow-movements-" + stamp() + ".csv", toCsv(rows));
+  toast("ok", "Movements exported.");
+}
+
+function exportReorder() {
+  var groups = reorderGroups();
+  var rows = [["supplier", "contact", "email", "sku", "product", "on_hand", "reorder_level", "suggested_qty", "unit", "unit_cost", "line_total"]];
+  groups.forEach(function (group) {
+    group.items.forEach(function (item) {
+      rows.push([group.supplier.name, group.supplier.contactName || "", group.supplier.email || "", item.product.sku, item.product.name, item.product.onHand, item.product.reorderLevel, item.suggested, item.product.unit, (item.product.unitCost / 100).toFixed(2), (item.suggested * item.product.unitCost / 100).toFixed(2)]);
+    });
+  });
+  download("stockflow-reorder-" + stamp() + ".csv", toCsv(rows));
+  toast("ok", "Reorder list exported.");
+}
+
+function exportTemplate() {
+  var rows = [
+    ["sku", "name", "category", "unit", "unit_cost", "unit_price", "reorder_level", "supplier", "opening_stock", "notes"],
+    ["RM-CRE-300", "Creatine Monohydrate 300 g", "Raw material", "jar", "4.20", "9.90", "40", "Nordic Raw Materials", "60", ""],
+    ["PK-JAR-500", "Jar 500 ml — matte black", "Packaging", "piece", "0.68", "0", "200", "Vellore Packaging Co.", "150", ""]
+  ];
+  download("stockflow-import-template.csv", toCsv(rows));
+}
+
+function backupJson() {
+  download("stockflow-backup-" + stamp() + ".json", JSON.stringify(state.db, null, 2), "application/json");
+  toast("ok", "Backup downloaded.");
+}
+
+function reorderGroups() {
+  var suppliers = state.db.suppliers;
+  var map = {};
+  productsWithStock().forEach(function (p) {
+    if (p.archivedAt) return;
+    if (p.onHand > p.reorderLevel) return;
+    var key = p.supplierId || "unassigned";
+    if (!map[key]) {
+      var supplier = suppliers.filter(function (s) { return s.id === key; })[0];
+      map[key] = {
+        supplier: supplier || { id: "unassigned", name: "Unassigned supplier", contactName: null, email: null, phone: null, leadTimeDays: 0 },
+        items: []
+      };
+    }
+    var target = Math.max(p.reorderLevel * 2, p.reorderLevel + 1);
+    map[key].items.push({ product: p, suggested: Math.max(target - p.onHand, 1) });
+  });
+  return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return a.supplier.name.localeCompare(b.supplier.name); });
+}
+
+function seedSample() {
+  if (!isOwner()) throw new Error("Owner access required.");
+  if (state.db.products.length) throw new Error("Sample data can only be loaded into an empty catalogue.");
+  var supplierSeeds = [
+    { name: "Nordic Raw Materials", contactName: "Ingrid Holm", email: "orders@nordicraw.example", phone: "+46 8 555 0110", leadTimeDays: 14 },
+    { name: "Vellore Packaging Co.", contactName: "S. Ramesh", email: "sales@vellorepack.example", phone: "+91 44 5550 2200", leadTimeDays: 7 },
+    { name: "Ruhr Chemie Handel", contactName: "Lena Brandt", email: "vertrieb@ruhrchemie.example", phone: "+49 201 555 330", leadTimeDays: 21 }
+  ];
+  var productSeeds = [
+    { sku: "RM-CRE-300", name: "Creatine Monohydrate 300 g", category: "Raw material", unit: "jar", cost: 420, price: 990, reorder: 40, supplier: "Nordic Raw Materials", opening: 60 },
+    { sku: "RM-CRE-500", name: "Creatine Monohydrate 500 g", category: "Raw material", unit: "jar", cost: 640, price: 1490, reorder: 30, supplier: "Nordic Raw Materials", opening: 24 },
+    { sku: "PK-JAR-500", name: "Jar 500 ml — matte black", category: "Packaging", unit: "piece", cost: 68, price: 0, reorder: 200, supplier: "Vellore Packaging Co.", opening: 150 },
+    { sku: "PK-LID-500", name: "Lid 500 ml — black", category: "Packaging", unit: "piece", cost: 22, price: 0, reorder: 200, supplier: "Vellore Packaging Co.", opening: 420 },
+    { sku: "PK-LABEL-U", name: "Label — unflavoured", category: "Packaging", unit: "piece", cost: 9, price: 0, reorder: 300, supplier: "Vellore Packaging Co.", opening: 180 },
+    { sku: "PK-LABEL-L", name: "Label — lemon mojito", category: "Packaging", unit: "piece", cost: 9, price: 0, reorder: 300, supplier: "Vellore Packaging Co.", opening: 90 },
+    { sku: "FG-UNF-300", name: "REINPUMP Unflavoured — finished", category: "Finished goods", unit: "unit", cost: 510, price: 350, reorder: 25, supplier: "Nordic Raw Materials", opening: 18 },
+    { sku: "FG-LEM-300", name: "REINPUMP Lemon Mojito — finished", category: "Finished goods", unit: "unit", cost: 560, price: 500, reorder: 25, supplier: "Nordic Raw Materials", opening: 6 }
+  ];
+  var supplierIds = {};
+  commit(function () {
+    supplierSeeds.forEach(function (s) {
+      var supplier = Object.assign({ id: uid(), createdAt: nowISO(), archivedAt: null, notes: null }, s);
+      supplierIds[s.name] = supplier.id;
+      state.db.suppliers.push(supplier);
+    });
+    var productIds = {};
+    productSeeds.forEach(function (s) {
+      var product = {
+        id: uid(), sku: s.sku, name: s.name, category: s.category, unit: s.unit,
+        unitCost: s.cost, unitPrice: s.price, reorderLevel: s.reorder,
+        supplierId: supplierIds[s.supplier] || null, notes: "Sample record — edit or archive freely.",
+        createdAt: nowISO(), archivedAt: null
+      };
+      productIds[s.sku] = product.id;
+      state.db.products.push(product);
+      if (s.opening > 0) {
+        state.db.movements.push({
+          id: uid(), productId: product.id, kind: "in", qty: s.opening, unitCost: s.cost,
+          reason: "Opening balance", reference: null, note: null,
+          userId: state.user.id, userName: state.user.name,
+          at: new Date(Date.now() - 40 * 86400000).toISOString()
+        });
+      }
+    });
+    [
+      { sku: "FG-UNF-300", qty: -8, reason: "Customer orders", days: 18 },
+      { sku: "FG-UNF-300", qty: -5, reason: "Customer orders", days: 9 },
+      { sku: "FG-LEM-300", qty: -4, reason: "Customer orders", days: 6 },
+      { sku: "PK-JAR-500", qty: -30, reason: "Production — filling", days: 12 },
+      { sku: "PK-LABEL-U", qty: -60, reason: "Production — labelling", days: 12 },
+      { sku: "PK-LABEL-L", qty: -40, reason: "Production — labelling", days: 5 },
+      { sku: "PK-LID-500", qty: 120, reason: "Purchase order PO-1042", days: 4 }
+    ].forEach(function (plan) {
+      state.db.movements.push({
+        id: uid(), productId: productIds[plan.sku], kind: plan.qty > 0 ? "in" : "out",
+        qty: plan.qty, unitCost: plan.qty > 0 ? 22 : null,
+        reason: plan.reason, reference: null, note: null,
+        userId: state.user.id, userName: state.user.name,
+        at: new Date(Date.now() - plan.days * 86400000).toISOString()
+      });
+    });
+    logAudit("demo.load", "workspace", null, { products: productSeeds.length });
+  });
+  toast("ok", "Sample catalogue loaded.");
+}
+
+/* ------------------------------------------------------------------ layout */
+var NAV = [
+  { hash: "#/dashboard", label: "Dashboard", icon: "grid" },
+  { hash: "#/products", label: "Products", icon: "box" },
+  { hash: "#/movements", label: "Movements", icon: "swap" },
+  { hash: "#/suppliers", label: "Suppliers", icon: "truck" },
+  { hash: "#/reorder", label: "Reorder", icon: "cart" },
+  { hash: "#/reports", label: "Reports", icon: "chart" },
+  { hash: "#/settings", label: "Settings", icon: "gear" }
+];
+
+var ICONS = {
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/>',
+  swap: '<path d="M7 4v16"/><path d="m3 8 4-4 4 4"/><path d="M17 20V4"/><path d="m21 16-4 4-4-4"/>',
+  truck: '<path d="M3 6h10v9H3z"/><path d="M13 9h4l4 4v2h-8z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  cart: '<circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/><path d="M3 4h2l2.2 10h11L21 7H6"/>',
+  chart: '<path d="M3 21h18"/><path d="M6 21V11"/><path d="M12 21V4"/><path d="M18 21v-7"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
+};
+
+function icon(name) {
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
+}
+
+function navLink(item, active) {
+  var on = item.hash === active;
+  return '<a href="' + item.hash + '"' + (on ? ' class="active" aria-current="page"' : '') + '>' + icon(item.icon) + "<span>" + esc(item.label) + "</span></a>";
+}
+
+function initialsOf(name) {
+  return String(name || "?").split(/\s+/).filter(Boolean).map(function (part) { return part.charAt(0); }).slice(0, 2).join("").toUpperCase();
+}
+
+function shell(active, inner) {
+  var user = currentUser();
+  var nav = NAV.map(function (item) { return navLink(item, active); }).join("");
+  var mnav = NAV.map(function (item) {
+    return '<a href="' + item.hash + '"' + (item.hash === active ? ' class="active"' : '') + ">" + esc(item.label) + "</a>";
+  }).join("");
+
+  return '' +
+    '<div class="app">' +
+      '<aside class="sidebar">' +
+        '<div class="brand"><div class="mark">SF</div><div style="min-width:0">' +
+          "<b>" + esc(state.db.settings.org) + "</b><span>StockFlow</span>" +
+        "</div></div>" +
+        '<nav class="nav" aria-label="Sections">' + nav + "</nav>" +
+        '<div class="side-foot">' +
+          '<div class="who"><div class="avatar">' + esc(initialsOf(user.name)) + "</div>" +
+            '<div style="min-width:0"><b>' + esc(user.name) + "</b><span>" + esc(user.role) + "</span></div></div>" +
+          '<button type="button" class="btn ghost sm" data-click="logout" style="width:100%">Sign out</button>' +
+        "</div>" +
+      "</aside>" +
+      '<main class="main">' +
+        '<div class="mnav" aria-label="Sections">' + mnav + "</div>" +
+        '<div class="wrap">' + inner + "</div>" +
+      "</main>" +
+    "</div>";
+}
+
+function pageHead(title, subtitle, actions) {
+  return '<div class="head"><div><h1>' + esc(title) + "</h1>" +
+    (subtitle ? "<p>" + esc(subtitle) + "</p>" : "") + "</div>" +
+    (actions ? '<div class="actions">' + actions + "</div>" : "") +
+    "</div>";
+}
+
+function statusPill(product) {
+  var status = statusOf(product);
+  return '<span class="pill ' + status + '">' + STATUS_LABEL[status] + "</span>";
+}
+
+function kindPill(kind) {
+  var label = KIND_LABEL[kind] || kind;
+  var cls = kind === "in" ? "in" : kind === "out" ? "outm" : "adjust";
+  return '<span class="pill ' + cls + '">' + label + "</span>";
+}
+
+function qtyText(delta) {
+  return (delta > 0 ? "+" : delta < 0 ? "−" : "") + num(Math.abs(delta));
+}
+
+function emptyBox(title, body, action) {
+  return '<div class="empty"><b>' + esc(title) + "</b><p>" + esc(body) + "</p>" +
+    (action ? '<div style="margin-top:14px">' + action + "</div>" : "") +
+    "</div>";
+}
+
+function moneyField(cents) {
+  return (Number(cents || 0) / 100).toFixed(2);
+}
+
+function notFound(title, body, backHref, backLabel) {
+  return pageHead(title, "", "") +
+    '<div class="card">' + emptyBox(body, "It may have been removed, or the link is out of date.",
+      '<a class="btn ghost" href="' + backHref + '">' + esc(backLabel) + "</a>") + "</div>";
+}
+
+/* -------------------------------------------------------------------- auth */
+function authBrand() {
+  return '<div class="authbrand"><div class="mark">SF</div><div>' +
+    '<b style="display:block;color:#fff;font-size:14px;letter-spacing:-.01em">' + esc(state.db.settings.org) + "</b>" +
+    '<span style="display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)">Inventory control</span>' +
+    "</div></div>";
+}
+
+function viewAuth() {
+  var hasUsers = state.db.users.length > 0;
+
+  if (!hasUsers) {
+    return '<div class="auth"><div class="authbox">' +
+      authBrand() +
+      '<div class="authcard">' +
+        "<h1>Set up StockFlow</h1>" +
+        '<p class="lede">Create the owner account for this workspace. Data stays in this browser.</p>' +
+        '<form data-action="setup" novalidate>' +
+          '<div class="field"><label class="label" for="f-org">Workspace name</label>' +
+            '<input class="input" id="f-org" name="org" type="text" value="Zeroth StockFlow" autocomplete="organization" /></div>' +
+          '<div class="field"><label class="label" for="f-name">Your name</label>' +
+            '<input class="input" id="f-name" name="name" type="text" placeholder="Raymond" autocomplete="name" /></div>' +
+          '<div class="field"><label class="label" for="f-email">Email</label>' +
+            '<input class="input" id="f-email" name="email" type="email" placeholder="you@company.com" autocomplete="username" /></div>' +
+          '<div class="row2">' +
+            '<div class="field"><label class="label" for="f-password">Password</label>' +
+              '<input class="input" id="f-password" name="password" type="password" autocomplete="new-password" /></div>' +
+            '<div class="field"><label class="label" for="f-confirm">Confirm</label>' +
+              '<input class="input" id="f-confirm" name="confirm" type="password" autocomplete="new-password" /></div>' +
+          "</div>" +
+          '<button class="btn primary" style="width:100%" type="submit">Create workspace</button>' +
+        "</form>" +
+      "</div>" +
+      '<p class="authnote">Passwords are hashed in this browser with PBKDF2. There is no server, so keep a backup and remember the password.</p>' +
+    "</div></div>";
+  }
+
+  return '<div class="auth"><div class="authbox">' +
+    authBrand() +
+    '<div class="authcard">' +
+      "<h1>Sign in</h1>" +
+      '<p class="lede">Enter the account created for this workspace.</p>' +
+      '<form data-action="login" novalidate>' +
+        '<div class="field"><label class="label" for="f-email">Email</label>' +
+          '<input class="input" id="f-email" name="email" type="email" autocomplete="username" autofocus /></div>' +
+        '<div class="field"><label class="label" for="f-password">Password</label>' +
+          '<input class="input" id="f-password" name="password" type="password" autocomplete="current-password" /></div>' +
+        '<button class="btn primary" style="width:100%" type="submit">Sign in</button>' +
+      "</form>" +
+    "</div>" +
+    '<p class="authnote">Local workspace · ' + state.db.users.length + " account" + (state.db.users.length === 1 ? "" : "s") + " · data saved in this browser only</p>" +
+  "</div></div>";
+}
+
+function doSetup(form) {
+  var org = (form.org.value || "").trim() || "Zeroth StockFlow";
+  var name = (form.name.value || "").trim();
+  var email = (form.email.value || "").trim().toLowerCase();
+  var password = form.password.value || "";
+  var confirm = form.confirm.value || "";
+
+  if (name.length < 2) throw new Error("Enter your name.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email address.");
+  if (password.length < 8) throw new Error("Use at least 8 characters for the password.");
+  if (password !== confirm) throw new Error("The two passwords do not match.");
+
+  createPasswordRecord(password).then(function (record) {
+    var user = { id: uid(), name: name, email: email, role: "owner", active: true, createdAt: nowISO(), password: record };
+    state.db.users.push(user);
+    state.db.settings.org = org;
+    logAudit("workspace.create", "user", user.id, { email: email });
+    state.user = user;
+    writeSession(user.id);
+    saveDb();
+    render();
+    toast("ok", "Workspace ready. Welcome, " + name.split(" ")[0] + ".");
+  }).catch(function (error) {
+    toast("error", error.message);
+  });
+}
+
+function doLogin(form) {
+  var email = (form.email.value || "").trim().toLowerCase();
+  var password = form.password.value || "";
+  var user = state.db.users.filter(function (u) { return String(u.email).toLowerCase() === email; })[0];
+
+  if (!user) { toast("error", "No account matches that email address."); return; }
+  if (user.active === false) { toast("error", "That account has been deactivated."); return; }
+
+  verifyPassword(password, user.password).then(function (ok) {
+    if (!ok) { toast("error", "That password is not correct."); return; }
+    state.user = user;
+    writeSession(user.id);
+    logAudit("auth.login", "user", user.id, null);
+    saveDb();
+    render();
+    toast("ok", "Signed in as " + user.name + ".");
+  }).catch(function (error) {
+    toast("error", error.message);
+  });
+}
+
+/* ----------------------------------------------------------------- views */
+function activeProducts() {
+  return productsWithStock().filter(function (p) { return !p.archivedAt; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+}
+
+function viewDashboard() {
+  var user = currentUser();
+  var products = activeProducts();
+  var units = products.reduce(function (sum, p) { return sum + p.onHand; }, 0);
+  var cost = products.reduce(function (sum, p) { return sum + p.onHand * p.unitCost; }, 0);
+  var retail = products.reduce(function (sum, p) { return sum + p.onHand * p.unitPrice; }, 0);
+  var low = products.filter(function (p) { return p.onHand <= p.reorderLevel; })
+    .sort(function (a, b) { return a.onHand - b.onHand; });
+  var out = products.filter(function (p) { return p.onHand <= 0; }).length;
+  var month = new Date().toISOString().slice(0, 7);
+  var monthCount = state.db.movements.filter(function (m) { return m.at.slice(0, 7) === month; }).length;
+
+  var catMap = {};
+  products.forEach(function (p) {
+    if (!catMap[p.category]) catMap[p.category] = { name: p.category, units: 0, value: 0 };
+    catMap[p.category].units += p.onHand;
+    catMap[p.category].value += p.onHand * p.unitCost;
+  });
+  var cats = Object.keys(catMap).map(function (key) { return catMap[key]; })
+    .sort(function (a, b) { return b.value - a.value; });
+  var maxCat = Math.max.apply(null, cats.map(function (c) { return c.value; }).concat([1]));
+
+  var actions = canWrite()
+    ? '<a class="btn ghost" href="#/movements">Record movement</a><a class="btn primary" href="#/products/new">New product</a>'
+    : "";
+
+  var today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  var html = pageHead("Good to see you, " + user.name.split(" ")[0], "Stock position as of " + today, actions);
+
+  html += '<div class="stats">' +
+    '<div class="stat"><div class="k">Active SKUs</div><div class="v">' + num(products.length) + '</div><div class="h">' + num(units) + ' units on hand</div></div>' +
+    '<div class="stat brand"><div class="k">Stock value (cost)</div><div class="v">' + money(cost) + '</div><div class="h">' + money(retail) + " at selling price</div></div>" +
+    '<div class="stat ' + (out > 0 ? "bad" : low.length > 0 ? "warn" : "ok") + '"><div class="k">Needs attention</div><div class="v">' + num(low.length) + '</div><div class="h">' + num(out) + " out of stock</div></div>" +
+    '<div class="stat"><div class="k">Movements this month</div><div class="v">' + num(monthCount) + '</div><div class="h">Receipts, issues and counts</div></div>' +
+  "</div>";
+
+  if (products.length === 0) {
+    html += '<div class="card" style="margin-top:18px">' +
+      emptyBox("Your catalogue is empty",
+        "Add your first product, or load a sample catalogue from Settings to see how StockFlow works. Sample data is fully editable.",
+        canWrite() ? '<a class="btn primary" href="#/products/new">Add a product</a>' : "") +
+      '<div style="border-top:1px solid var(--line);padding:12px;text-align:center">' +
+        '<a class="btn ghost sm" href="#/settings">Load sample catalogue from Settings</a>' +
+      "</div></div>";
+  } else {
+    var watch = low.slice(0, 6).map(function (p) {
+      return "<tr class=\"hover\">" +
+        '<td><a class="linkbtn" href="#/products/' + esc(p.id) + '">' + esc(p.name) + "</a>" +
+          '<div class="mono muted">' + esc(p.sku) + "</div></td>" +
+        '<td class="r num">' + num(p.onHand) + "</td>" +
+        '<td class="r num muted">' + num(p.reorderLevel) + "</td>" +
+        "<td>" + statusPill(p) + "</td>" +
+        '<td class="r"><a class="btn ghost sm" href="#/movements">Receive</a></td>' +
+      "</tr>";
+    }).join("");
+
+    var catBars = cats.map(function (c) {
+      var width = Math.max((c.value / maxCat) * 100, 2);
+      return '<div class="bar"><div class="lbl"><span>' + esc(c.name) + "</span><span>" + money(c.value) + "</span></div>" +
+        '<div class="track"><div class="fill" style="width:' + width.toFixed(1) + '%"></div></div>' +
+        '<p class="sub">' + num(c.units) + " units</p></div>";
+    }).join("");
+
+    html += '<div class="cols">' +
+      '<div class="card">' +
+        '<div class="card-h"><h2>Reorder watchlist</h2><span>' +
+          (low.length ? num(low.length) + " product(s) at or below reorder level" : "All levels healthy") +
+        "</span></div>" +
+        (low.length === 0
+          ? emptyBox("Everything is above its reorder level", "StockFlow will flag products here as soon as on-hand quantity drops to the threshold you set.")
+          : '<div style="overflow-x:auto"><table style="min-width:520px"><thead><tr>' +
+              '<th>Product</th><th class="r">On hand</th><th class="r">Reorder at</th><th>Status</th><th class="r">Action</th>' +
+            "</tr></thead><tbody>" + watch + "</tbody></table></div>") +
+        (low.length > 0 ? '<div style="border-top:1px solid var(--line);padding:10px 15px;text-align:right">' +
+          '<a href="#/reorder" style="font-size:11.5px;font-weight:600;color:#9db4ff;text-decoration:none">Build a purchase order →</a></div>' : "") +
+      "</div>" +
+      '<div class="card">' +
+        '<div class="card-h"><h2>Stock value by category</h2><span>At cost</span></div>' +
+        '<div class="pad">' + (cats.length ? '<div class="bars">' + catBars + "</div>" : '<p class="sub">No data yet.</p>') + "</div>" +
+      "</div>" +
+    "</div>";
+  }
+
+  var recent = movementsDesc().slice(0, 8).map(function (m) {
+    var p = productById(m.productId);
+    return "<tr class=\"hover\">" +
+      '<td class="nowrap muted">' + esc(fmtWhen(m.at)) + "</td>" +
+      "<td>" + (p ? '<a class="linkbtn" href="#/products/' + esc(p.id) + '">' + esc(p.name) + "</a>" : '<span class="muted">Removed product</span>') + "</td>" +
+      "<td>" + kindPill(m.kind) + "</td>" +
+      '<td class="r num">' + qtyText(m.qty) + "</td>" +
+      '<td class="muted">' + esc(m.reason || "—") + "</td>" +
+      '<td class="muted">' + esc(m.userName || "—") + "</td>" +
+    "</tr>";
+  }).join("");
+
+  html += '<div class="card" style="margin-top:18px">' +
+    '<div class="card-h"><h2>Recent movement</h2><span>Latest 8 entries</span></div>' +
+    (recent
+      ? '<div style="overflow-x:auto"><table style="min-width:620px"><thead><tr>' +
+          "<th>When</th><th>Product</th><th>Type</th><th class=\"r\">Change</th><th>Reason</th><th>By</th>" +
+        "</tr></thead><tbody>" + recent + "</tbody></table></div>"
+      : emptyBox("No movements recorded", "Every receipt, issue and stock count is written to an append-only ledger, giving you a full audit trail.",
+          canWrite() ? '<a class="btn ghost" href="#/movements">Record the first movement</a>' : "")) +
+  "</div>";
+
+  return html;
+}
+
+function viewProducts() {
+  var f = state.filters;
+  var query = String(f.productSearch || "").trim().toLowerCase();
+  var list = productsWithStock().filter(function (p) {
+    if (!f.productArchived && p.archivedAt) return false;
+    if (f.productCategory !== "all" && p.category !== f.productCategory) return false;
+    if (query && (p.name + " " + p.sku + " " + p.category).toLowerCase().indexOf(query) < 0) return false;
+    if (f.productStatus !== "all" && statusOf(p) !== f.productStatus) return false;
+    return true;
+  }).sort(function (a, b) {
+    return (a.archivedAt ? 1 : 0) - (b.archivedAt ? 1 : 0) || a.name.localeCompare(b.name);
+  });
+
+  var units = list.reduce(function (sum, p) { return sum + p.onHand; }, 0);
+  var value = list.reduce(function (sum, p) { return sum + p.onHand * p.unitCost; }, 0);
+
+  var catOptions = ['<option value="all">All categories</option>'].concat(categories().map(function (c) {
+    return '<option value="' + esc(c) + '"' + (f.productCategory === c ? " selected" : "") + ">" + esc(c) + "</option>";
+  })).join("");
+
+  var statusOptions = [["all", "All statuses"], ["ok", "In stock"], ["low", "Low stock"], ["out", "Out of stock"]].map(function (pair) {
+    return '<option value="' + pair[0] + '"' + (f.productStatus === pair[0] ? " selected" : "") + ">" + pair[1] + "</option>";
+  }).join("");
+
+  var rows = list.map(function (p) {
+    return "<tr class=\"hover\">" +
+      '<td><a class="linkbtn" href="#/products/' + esc(p.id) + '">' + esc(p.name) + "</a>" +
+        '<div class="mono muted">' + esc(p.sku) + (p.archivedAt ? " · archived" : "") + "</div></td>" +
+      '<td class="muted nowrap">' + esc(p.category) + "</td>" +
+      '<td class="r num">' + num(p.onHand) + '<div class="sub">' + esc(p.unit) + "s</div></td>" +
+      '<td class="r num muted">' + num(p.reorderLevel) + "</td>" +
+      "<td>" + statusPill(p) + "</td>" +
+      '<td class="r num">' + money(p.onHand * p.unitCost) + "</td>" +
+      '<td class="muted nowrap">' + esc(supplierName(p.supplierId) || "—") + "</td>" +
+      '<td class="r"><a class="btn ghost sm" href="#/products/' + esc(p.id) + '">Open</a></td>' +
+    "</tr>";
+  }).join("");
+
+  var actions = canWrite() ? '<a class="btn ghost" href="#/movements">Record movement</a><a class="btn primary" href="#/products/new">New product</a>' : "";
+
+  return pageHead("Products", num(list.length) + " shown · " + num(units) + " units · " + money(value) + " at cost", actions) +
+    '<div class="card" style="margin-bottom:16px"><div class="pad">' +
+      '<div class="row4">' +
+        '<div class="field" style="margin:0"><label class="label" for="q-products">Search</label>' +
+          '<input class="input" id="q-products" data-filter="productSearch" type="search" value="' + esc(f.productSearch) + '" placeholder="Name, SKU or category" /></div>' +
+        '<div class="field" style="margin:0"><label class="label" for="q-cat">Category</label>' +
+          '<select class="input" id="q-cat" data-filter="productCategory">' + catOptions + "</select></div>" +
+        '<div class="field" style="margin:0"><label class="label" for="q-status">Status</label>' +
+          '<select class="input" id="q-status" data-filter="productStatus">' + statusOptions + "</select></div>" +
+        '<div class="field" style="margin:0;display:flex;align-items:flex-end">' +
+          '<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)">' +
+            '<input type="checkbox" data-filter="productArchived"' + (f.productArchived ? " checked" : "") + ' style="width:15px;height:15px;accent-color:var(--brand)" /> Show archived' +
+          "</label></div>" +
+      "</div>" +
+    "</div></div>" +
+    '<div class="card">' +
+      (rows
+        ? '<div style="overflow-x:auto"><table style="min-width:820px"><thead><tr>' +
+            "<th>Product</th><th>Category</th><th class=\"r\">On hand</th><th class=\"r\">Reorder at</th><th>Status</th><th class=\"r\">Value</th><th>Supplier</th><th></th>" +
+          "</tr></thead><tbody>" + rows + "</tbody></table></div>"
+        : emptyBox("Nothing matches those filters", "Try a different search or clear the filters to see the whole catalogue.",
+            '<button type="button" class="btn ghost" data-click="clear-product-filters">Clear filters</button>')) +
+    "</div>";
+}
+
+function viewProductNew() {
+  if (!canWrite()) return pageHead("New product", "", "") + '<div class="card">' + emptyBox("Read-only access", "Your role cannot create products.") + "</div>";
+  return pageHead("New product", "Add an item to the catalogue. Opening stock is recorded as a movement.",
+      '<a class="btn ghost" href="#/products">Cancel</a>') +
+    '<div class="card"><div class="pad">' + productForm(null) + "</div></div>";
+}
+
+function productForm(product) {
+  var editing = !!product;
+  var p = product || { sku: "", name: "", category: "", unit: "unit", unitCost: 0, unitPrice: 0, reorderLevel: 0, supplierId: null, notes: "" };
+
+  var catList = '<datalist id="cat-list">' + categories().map(function (c) {
+    return '<option value="' + esc(c) + '"></option>';
+  }).join("") + "</datalist>";
+
+  var unitSeen = {};
+  state.db.products.forEach(function (item) { if (item.unit) unitSeen[item.unit] = true; });
+  var unitList = '<datalist id="unit-list">' + Object.keys(unitSeen).sort().map(function (u) {
+    return '<option value="' + esc(u) + '"></option>';
+  }).join("") + "</datalist>";
+
+  var suppliers = state.db.suppliers.filter(function (s) { return !s.archivedAt; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  var supplierOptions = '<option value="">No supplier</option>' + suppliers.map(function (s) {
+    return '<option value="' + esc(s.id) + '"' + (p.supplierId === s.id ? " selected" : "") + ">" + esc(s.name) + "</option>";
+  }).join("");
+
+  return '<form data-action="' + (editing ? "product-update" : "product-create") + '"' + (editing ? ' data-id="' + esc(p.id) + '"' : "") + ">" +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="p-sku">SKU</label>' +
+        '<input class="input" id="p-sku" name="sku" value="' + esc(p.sku) + '" placeholder="RM-CRE-300" autocomplete="off" required /></div>' +
+      '<div class="field"><label class="label" for="p-name">Name</label>' +
+        '<input class="input" id="p-name" name="name" value="' + esc(p.name) + '" placeholder="Creatine Monohydrate 300 g" required /></div>' +
+    "</div>" +
+    '<div class="row3">' +
+      '<div class="field"><label class="label" for="p-cat">Category</label>' +
+        '<input class="input" id="p-cat" name="category" list="cat-list" value="' + esc(p.category) + '" placeholder="General" />' + catList + "</div>" +
+      '<div class="field"><label class="label" for="p-unit">Unit</label>' +
+        '<input class="input" id="p-unit" name="unit" list="unit-list" value="' + esc(p.unit) + '" placeholder="unit" />' + unitList + "</div>" +
+      '<div class="field"><label class="label" for="p-reorder">Reorder level</label>' +
+        '<input class="input" id="p-reorder" name="reorder_level" type="number" min="0" step="1" value="' + esc(p.reorderLevel) + '" /></div>' +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="p-cost">Unit cost</label>' +
+        '<input class="input" id="p-cost" name="unit_cost" type="number" min="0" step="0.01" value="' + moneyField(p.unitCost) + '" /></div>' +
+      '<div class="field"><label class="label" for="p-price">Selling price</label>' +
+        '<input class="input" id="p-price" name="unit_price" type="number" min="0" step="0.01" value="' + moneyField(p.unitPrice) + '" /></div>' +
+    "</div>" +
+    '<div class="' + (editing ? "" : "row2") + '">' +
+      '<div class="field"><label class="label" for="p-supplier">Supplier</label>' +
+        '<select class="input" id="p-supplier" name="supplier_id">' + supplierOptions + "</select></div>" +
+      (editing ? "" : '<div class="field"><label class="label" for="p-opening">Opening stock</label>' +
+        '<input class="input" id="p-opening" name="opening_stock" type="number" min="0" step="1" value="0" /></div>') +
+    "</div>" +
+    '<div class="field"><label class="label" for="p-notes">Notes</label>' +
+      '<textarea class="input" id="p-notes" name="notes" rows="2" placeholder="Optional internal notes">' + esc(p.notes || "") + "</textarea></div>" +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:4px">' +
+      '<button class="btn primary" type="submit">' + (editing ? "Save changes" : "Create product") + "</button>" +
+      '<a class="btn ghost" href="' + (editing ? "#/products/" + esc(p.id) : "#/products") + '">Cancel</a>' +
+    "</div>" +
+  "</form>";
+}
+
+function movementForm(lockedProduct) {
+  var products = activeProducts();
+  var options = products.map(function (p) {
+    return '<option value="' + esc(p.id) + '"' + (lockedProduct && lockedProduct.id === p.id ? " selected" : "") + ">" +
+      esc(p.name) + " · " + esc(p.sku) + "</option>";
+  }).join("");
+
+  var productBlock = lockedProduct
+    ? '<input type="hidden" name="product_id" value="' + esc(lockedProduct.id) + '" />' +
+      '<div class="field"><span class="label">Product</span><div class="input" style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        "<span>" + esc(lockedProduct.name) + '</span><span class="mono muted">' + esc(lockedProduct.sku) + "</span></div></div>"
+    : '<div class="field"><label class="label" for="m-product">Product</label>' +
+      '<select class="input" id="m-product" name="product_id">' + options + "</select></div>";
+
+  var costHint = lockedProduct
+    ? "Blank keeps the current cost (" + money(lockedProduct.unitCost) + ")."
+    : "Blank keeps the product's current cost.";
+
+  return '<form data-action="movement">' +
+    productBlock +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="m-kind">Type</label>' +
+        '<select class="input" id="m-kind" name="kind" data-role="movement-kind">' +
+          '<option value="in">Received</option><option value="out">Issued</option><option value="adjust">Stock count</option>' +
+        "</select></div>" +
+      '<div class="field" data-when="in out"><label class="label" for="m-qty">Quantity</label>' +
+        '<input class="input" id="m-qty" name="quantity" type="number" min="1" step="1" placeholder="0" /></div>' +
+      '<div class="field" data-when="adjust"><label class="label" for="m-counted">Counted quantity</label>' +
+        '<input class="input" id="m-counted" name="counted" type="number" min="0" step="1" placeholder="0" /></div>' +
+    "</div>" +
+    '<div class="field" data-when="in"><label class="label" for="m-cost">Unit cost</label>' +
+      '<input class="input" id="m-cost" name="unit_cost" type="number" min="0" step="0.01" placeholder="' + moneyField(lockedProduct ? lockedProduct.unitCost : 0) + '" />' +
+      '<p class="note" style="margin-top:5px">' + costHint + " The weighted average updates automatically.</p></div>" +
+    '<div class="field"><label class="label" for="m-reason">Reason</label>' +
+      '<input class="input" id="m-reason" name="reason" placeholder="Purchase order, customer order, stock count…" /></div>' +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="m-ref">Reference</label>' +
+        '<input class="input" id="m-ref" name="reference" placeholder="PO-1042" /></div>' +
+      '<div class="field"><label class="label" for="m-note">Note</label>' +
+        '<input class="input" id="m-note" name="note" placeholder="Optional" /></div>' +
+    "</div>" +
+    '<button class="btn primary" style="width:100%" type="submit">Record movement</button>' +
+  "</form>";
+}
+
+function syncMovementFields(form) {
+  var kindField = form.querySelector('[data-role="movement-kind"]');
+  if (!kindField) return;
+  var kind = kindField.value;
+  $$("[data-when]", form).forEach(function (el) {
+    el.style.display = el.getAttribute("data-when").split(" ").indexOf(kind) >= 0 ? "" : "none";
+  });
+}
+
+function viewProduct(id) {
+  var product = productById(id);
+  if (!product) {
+    return notFound("Product not found", "This product is no longer in the catalogue.", "#/products", "Back to products");
+  }
+
+  var p = Object.assign({}, product, { onHand: onHand(product.id) });
+  var movements = movementsDesc({ productId: p.id }).slice(0, 40);
+
+  var actions = '<a class="btn ghost" href="#/products">Back</a>' +
+    (canWrite()
+      ? '<button type="button" class="btn ' + (p.archivedAt ? "primary" : "ghost") + '" data-click="' + (p.archivedAt ? "product-restore" : "product-archive") + '" data-id="' + esc(p.id) + '">' +
+          (p.archivedAt ? "Restore product" : "Archive product") + "</button>"
+      : "");
+
+  var html = pageHead(p.name, p.sku + " · " + p.category, actions);
+
+  if (p.archivedAt) {
+    html += '<div class="banner warn">This product is archived. It is hidden from lists and cannot receive or issue stock until restored.</div>';
+  }
+
+  html += '<div class="stats">' +
+    '<div class="stat"><div class="k">On hand</div><div class="v">' + num(p.onHand) + '</div><div class="h">' + esc(p.unit) + (p.onHand === 1 ? "" : "s") + "</div></div>" +
+    '<div class="stat"><div class="k">Reorder level</div><div class="v">' + num(p.reorderLevel) + '</div><div class="h">' + statusPill(p) + "</div></div>" +
+    '<div class="stat brand"><div class="k">Unit cost</div><div class="v">' + money(p.unitCost) + '</div><div class="h">Weighted average</div></div>' +
+    '<div class="stat"><div class="k">Stock value</div><div class="v">' + money(p.onHand * p.unitCost) + '</div><div class="h">' + money(p.onHand * p.unitPrice) + " retail</div></div>" +
+  "</div>";
+
+  var details = '<dl style="margin:0">' +
+    '<div class="kv"><dt>Category</dt><dd>' + esc(p.category) + "</dd></div>" +
+    '<div class="kv"><dt>Unit</dt><dd>' + esc(p.unit) + "</dd></div>" +
+    '<div class="kv"><dt>Supplier</dt><dd>' + esc(supplierName(p.supplierId) || "Not set") + "</dd></div>" +
+    '<div class="kv"><dt>Selling price</dt><dd>' + money(p.unitPrice) + "</dd></div>" +
+    '<div class="kv"><dt>Created</dt><dd>' + esc(fmtDate(p.createdAt)) + "</dd></div>" +
+    (p.notes ? '<div class="kv"><dt>Notes</dt><dd style="max-width:60%">' + esc(p.notes) + "</dd></div>" : "") +
+  "</dl>";
+
+  html += '<div class="cols" style="margin-top:18px">' +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Movement history</h2><span>' + num(movements.length) + " entries</span></div>" +
+      (movements.length
+        ? '<div style="overflow-x:auto"><table style="min-width:560px"><thead><tr>' +
+            "<th>When</th><th>Type</th><th class=\"r\">Change</th><th>Reason</th><th>By</th>" +
+          "</tr></thead><tbody>" +
+            movements.map(function (m) {
+              return "<tr class=\"hover\">" +
+                '<td class="nowrap muted">' + esc(fmtWhen(m.at)) + "</td>" +
+                "<td>" + kindPill(m.kind) + "</td>" +
+                '<td class="r num">' + qtyText(m.qty) + "</td>" +
+                '<td class="muted">' + esc(m.reason || "—") +
+                  (m.reference ? '<div class="sub mono">' + esc(m.reference) + "</div>" : "") + "</td>" +
+                '<td class="muted nowrap">' + esc(m.userName || "—") + "</td>" +
+              "</tr>";
+            }).join("") +
+          "</tbody></table></div>"
+        : emptyBox("No movements yet", "Receipts, issues and stock counts for this product will appear here.")) +
+    "</div>" +
+    '<div class="stack">' +
+      (canWrite() && !p.archivedAt
+        ? '<div class="card"><div class="card-h"><h2>Record movement</h2><span>Updates on hand</span></div><div class="pad">' + movementForm(p) + "</div></div>"
+        : "") +
+      '<div class="card"><div class="card-h"><h2>Details</h2></div><div class="pad">' + details + "</div></div>" +
+    "</div>" +
+  "</div>";
+
+  if (canWrite()) {
+    html += '<div class="card" style="margin-top:18px">' +
+      '<details class="edit"><summary>Edit product details</summary><div class="inner">' + productForm(p) + "</div></details>" +
+      '<div class="card-h" style="border-top:1px solid var(--line)"><h2>Safety</h2><span>Archive keeps history</span></div>' +
+      '<div class="pad"><p class="sub">Archiving hides the product from lists and reorder suggestions. Its movement history is kept, and nothing is deleted.</p></div>' +
+    "</div>";
+  }
+
+  return html;
+}
+
+
+
+function viewMovements() {
+  var f = state.filters;
+  var list = movementsDesc({
+    productId: f.movementProduct || null,
+    kind: f.movementKind,
+    from: f.movementFrom,
+    to: f.movementTo
+  });
+  var shown = list.slice(0, 300);
+  var totalIn = list.reduce(function (sum, m) { return m.qty > 0 ? sum + m.qty : sum; }, 0);
+  var totalOut = list.reduce(function (sum, m) { return m.qty < 0 ? sum - m.qty : sum; }, 0);
+
+  var productOptions = '<option value="">All products</option>' + productsWithStock()
+    .sort(function (a, b) { return a.name.localeCompare(b.name); })
+    .map(function (p) {
+      return '<option value="' + esc(p.id) + '"' + (f.movementProduct === p.id ? " selected" : "") + ">" + esc(p.name) + " · " + esc(p.sku) + "</option>";
+    }).join("");
+
+  var kindOptions = [["all", "All types"], ["in", "Received"], ["out", "Issued"], ["adjust", "Adjusted"]].map(function (pair) {
+    return '<option value="' + pair[0] + '"' + (f.movementKind === pair[0] ? " selected" : "") + ">" + pair[1] + "</option>";
+  }).join("");
+
+  var rows = shown.map(function (m) {
+    var p = productById(m.productId);
+    return "<tr class=\"hover\">" +
+      '<td class="nowrap muted">' + esc(fmtWhen(m.at)) + "</td>" +
+      "<td>" + (p ? '<a class="linkbtn" href="#/products/' + esc(p.id) + '">' + esc(p.name) + "</a>" : '<span class="muted">Removed product</span>') +
+        (p ? '<div class="mono muted">' + esc(p.sku) + "</div>" : "") + "</td>" +
+      "<td>" + kindPill(m.kind) + "</td>" +
+      '<td class="r num">' + qtyText(m.qty) + "</td>" +
+      '<td class="muted">' + esc(m.reason || "—") +
+        (m.reference ? '<div class="sub mono">' + esc(m.reference) + "</div>" : "") + "</td>" +
+      '<td class="muted nowrap">' + esc(m.userName || "—") + "</td>" +
+    "</tr>";
+  }).join("");
+
+  var filtered = !!(f.movementProduct || f.movementKind !== "all" || f.movementFrom || f.movementTo);
+
+  var html = pageHead("Movements",
+    num(list.length) + " entries · +" + num(totalIn) + " in · −" + num(totalOut) + " out",
+    '<button type="button" class="btn ghost" data-click="export-movements">Export CSV</button>');
+
+  html += '<div class="card" style="margin-bottom:16px"><div class="pad">' +
+    '<div class="row4">' +
+      '<div class="field" style="margin:0"><label class="label" for="q-mproduct">Product</label>' +
+        '<select class="input" id="q-mproduct" data-filter="movementProduct">' + productOptions + "</select></div>" +
+      '<div class="field" style="margin:0"><label class="label" for="q-mkind">Type</label>' +
+        '<select class="input" id="q-mkind" data-filter="movementKind">' + kindOptions + "</select></div>" +
+      '<div class="field" style="margin:0"><label class="label" for="q-mfrom">From</label>' +
+        '<input class="input" id="q-mfrom" data-filter="movementFrom" type="date" value="' + esc(f.movementFrom) + '" /></div>' +
+      '<div class="field" style="margin:0"><label class="label" for="q-mto">To</label>' +
+        '<input class="input" id="q-mto" data-filter="movementTo" type="date" value="' + esc(f.movementTo) + '" /></div>' +
+    "</div>" +
+    (filtered
+      ? '<div style="margin-top:10px"><button type="button" class="btn ghost sm" data-click="clear-movement-filters">Clear filters</button></div>'
+      : "") +
+  "</div></div>";
+
+  html += '<div class="cols">' +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Ledger</h2><span>' + (list.length > shown.length ? "Latest " + num(shown.length) + " of " + num(list.length) : "Append-only history") + "</span></div>" +
+      (rows
+        ? '<div style="overflow-x:auto"><table style="min-width:640px"><thead><tr>' +
+            "<th>When</th><th>Product</th><th>Type</th><th class=\"r\">Change</th><th>Reason</th><th>By</th>" +
+          "</tr></thead><tbody>" + rows + "</tbody></table></div>"
+        : emptyBox("No movements match", "Adjust the filters, or record the first movement for this selection.",
+            filtered ? '<button type="button" class="btn ghost" data-click="clear-movement-filters">Clear filters</button>' : "")) +
+    "</div>" +
+    '<div class="stack">' +
+      (canWrite()
+        ? '<div class="card"><div class="card-h"><h2>Record movement</h2><span>Writes to the ledger</span></div><div class="pad">' +
+            (activeProducts().length ? movementForm(null) : '<p class="sub">Add a product before recording stock.</p>') +
+          "</div></div>"
+        : '<div class="card"><div class="card-h"><h2>Read-only</h2></div><div class="pad"><p class="sub">Your role can view the ledger but cannot record movements.</p></div></div>') +
+      '<div class="card"><div class="card-h"><h2>How the ledger works</h2></div><div class="pad">' +
+        '<p class="sub">Every change is stored as a signed entry. On-hand quantity is the sum of all entries for a product, so history can never silently disagree with stock.</p>' +
+        '<p class="note">Receipts can update the weighted average cost. Issues and counts never change it.</p>' +
+      "</div></div>" +
+    "</div>" +
+  "</div>";
+
+  return html;
+}
+
+function supplierForm(supplier) {
+  var s = supplier || { name: "", contactName: "", email: "", phone: "", leadTimeDays: 0, notes: "" };
+  return '<form data-action="supplier-save"' + (supplier ? ' data-id="' + esc(s.id) + '"' : "") + ">" +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="s-name">Supplier name</label>' +
+        '<input class="input" id="s-name" name="name" value="' + esc(s.name) + '" placeholder="Nordic Raw Materials" required /></div>' +
+      '<div class="field"><label class="label" for="s-contact">Contact person</label>' +
+        '<input class="input" id="s-contact" name="contact_name" value="' + esc(s.contactName || "") + '" placeholder="Ingrid Holm" /></div>' +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="s-email">Email</label>' +
+        '<input class="input" id="s-email" name="email" type="email" value="' + esc(s.email || "") + '" placeholder="orders@supplier.com" /></div>' +
+      '<div class="field"><label class="label" for="s-phone">Phone</label>' +
+        '<input class="input" id="s-phone" name="phone" value="' + esc(s.phone || "") + '" placeholder="+46 8 555 0110" /></div>' +
+    "</div>" +
+    '<div class="row2">' +
+      '<div class="field"><label class="label" for="s-lead">Lead time (days)</label>' +
+        '<input class="input" id="s-lead" name="lead_time_days" type="number" min="0" step="1" value="' + esc(s.leadTimeDays) + '" /></div>' +
+      '<div class="field"><label class="label" for="s-notes">Notes</label>' +
+        '<input class="input" id="s-notes" name="notes" value="' + esc(s.notes || "") + '" placeholder="Optional" /></div>' +
+    "</div>" +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="btn primary" type="submit">' + (supplier ? "Save supplier" : "Add supplier") + "</button>" +
+      (supplier ? '<button type="button" class="btn ghost" data-click="supplier-new">Cancel</button>' : "") +
+    "</div>" +
+  "</form>";
+}
+
+function viewSuppliers() {
+  var f = state.filters;
+  var editing = state.editSupplier ? state.db.suppliers.filter(function (s) { return s.id === state.editSupplier; })[0] : null;
+  var all = state.db.suppliers.slice().sort(function (a, b) {
+    return (a.archivedAt ? 1 : 0) - (b.archivedAt ? 1 : 0) || a.name.localeCompare(b.name);
+  });
+  var list = all.filter(function (s) { return f.supplierArchived || !s.archivedAt; });
+
+  var rows = list.map(function (s) {
+    var count = state.db.products.filter(function (p) { return p.supplierId === s.id && !p.archivedAt; }).length;
+    return "<tr class=\"hover\">" +
+      "<td><b class=\"white\">" + esc(s.name) + "</b>" + (s.archivedAt ? ' <span class="pill outm">Archived</span>' : "") +
+        (s.notes ? '<div class="sub">' + esc(s.notes) + "</div>" : "") + "</td>" +
+      '<td class="muted">' + esc(s.contactName || "—") +
+        (s.email ? '<div class="sub">' + esc(s.email) + "</div>" : "") +
+        (s.phone ? '<div class="sub">' + esc(s.phone) + "</div>" : "") + "</td>" +
+      '<td class="r num muted">' + (s.leadTimeDays ? esc(s.leadTimeDays) + " days" : "—") + "</td>" +
+      '<td class="r num">' + num(count) + "</td>" +
+      '<td class="r nowrap">' +
+        (canWrite() && !s.archivedAt ? '<button type="button" class="btn ghost sm" data-click="supplier-edit" data-id="' + esc(s.id) + '">Edit</button> ' : "") +
+        (canWrite() ? '<button type="button" class="btn ' + (s.archivedAt ? "ghost" : "danger") + ' sm" data-click="' + (s.archivedAt ? "supplier-restore" : "supplier-archive") + '" data-id="' + esc(s.id) + '">' +
+          (s.archivedAt ? "Restore" : "Archive") + "</button>" : "") +
+      "</td>" +
+    "</tr>";
+  }).join("");
+
+  var html = pageHead("Suppliers",
+    num(all.filter(function (s) { return !s.archivedAt; }).length) + " active suppliers",
+    '<button type="button" class="btn ghost" data-click="export-reorder">Export reorder list</button>' +
+    (canWrite() ? '<button type="button" class="btn primary" data-click="supplier-new">New supplier</button>' : ""));
+
+  if (canWrite()) {
+    html += '<div class="card" style="margin-bottom:16px">' +
+      '<details class="edit"' + (editing ? " open" : "") + ">" +
+        "<summary>" + (editing ? "Edit " + esc(editing.name) : "Add a supplier") + "</summary>" +
+        '<div class="inner">' + supplierForm(editing) + "</div>" +
+      "</details></div>";
+  }
+
+  html += '<div class="card">' +
+    '<div class="card-h"><h2>Supplier directory</h2><span>' +
+      '<label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px">' +
+        '<input type="checkbox" data-filter="supplierArchived"' + (f.supplierArchived ? " checked" : "") + ' style="accent-color:var(--brand)" /> Show archived' +
+      "</label></span></div>" +
+    (rows
+      ? '<div style="overflow-x:auto"><table style="min-width:660px"><thead><tr>' +
+          "<th>Supplier</th><th>Contact</th><th class=\"r\">Lead time</th><th class=\"r\">Products</th><th></th>" +
+        "</tr></thead><tbody>" + rows + "</tbody></table></div>"
+      : emptyBox("No suppliers yet", "Add the companies you buy from, then assign them to products to build purchase orders in one click.")) +
+  "</div>";
+
+  return html;
+}
+
+function viewReorder() {
+  var groups = reorderGroups();
+  var lines = groups.reduce(function (sum, group) { return sum + group.items.length; }, 0);
+  var estimated = groups.reduce(function (sum, group) {
+    return sum + group.items.reduce(function (inner, item) { return inner + item.suggested * item.product.unitCost; }, 0);
+  }, 0);
+
+  var html = pageHead("Reorder",
+    lines ? num(lines) + " line(s) across " + num(groups.length) + " supplier(s) · ~" + money(estimated) + " at cost" : "All stock is above its reorder level",
+    '<button type="button" class="btn ghost" data-click="export-reorder">Export CSV</button>' +
+    '<button type="button" class="btn ghost" data-click="print">Print</button>');
+
+  if (!groups.length) {
+    return html + '<div class="card">' +
+      emptyBox("Nothing to reorder", "StockFlow lists a product here when its on-hand quantity reaches the reorder level you set on the product.",
+        '<a class="btn ghost" href="#/products">Review products</a>') + "</div>";
+  }
+
+  html += '<p class="note" style="margin:0 0 16px">Suggested quantities top each item up to twice its reorder level. Adjust the quantities on your purchase order before sending.</p>';
+
+  groups.forEach(function (group) {
+    var subtotal = group.items.reduce(function (sum, item) { return sum + item.suggested * item.product.unitCost; }, 0);
+    var rows = group.items.map(function (item) {
+      var p = item.product;
+      return "<tr class=\"hover\">" +
+        '<td><a class="linkbtn" href="#/products/' + esc(p.id) + '">' + esc(p.name) + "</a>" +
+          '<div class="mono muted">' + esc(p.sku) + "</div></td>" +
+        '<td class="r num">' + num(p.onHand) + "</td>" +
+        '<td class="r num muted">' + num(p.reorderLevel) + "</td>" +
+        '<td class="r num white">' + num(item.suggested) + "</td>" +
+        '<td class="r num muted">' + money(p.unitCost) + "</td>" +
+        '<td class="r num">' + money(item.suggested * p.unitCost) + "</td>" +
+      "</tr>";
+    }).join("");
+
+    html += '<div class="card group">' +
+      '<div class="group-h"><div><h2>' + esc(group.supplier.name) + "</h2>" +
+        "<p>" + (group.supplier.contactName ? esc(group.supplier.contactName) + " · " : "") +
+          (group.supplier.email ? esc(group.supplier.email) : "No email on file") +
+          (group.supplier.leadTimeDays ? " · " + esc(group.supplier.leadTimeDays) + " day lead time" : "") + "</p></div>" +
+        '<span class="mono muted">' + money(subtotal) + "</span></div>" +
+      '<div style="overflow-x:auto"><table style="min-width:620px"><thead><tr>' +
+        '<th>Product</th><th class="r">On hand</th><th class="r">Reorder at</th><th class="r">Suggested</th><th class="r">Unit cost</th><th class="r">Line total</th>' +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
+    "</div>";
+  });
+
+  return html;
+}
+
+function reportRange() {
+  var f = state.filters;
+  return { from: f.reportFrom || daysAgo(29), to: f.reportTo || isoDay() };
+}
+
+function viewReports() {
+  var range = reportRange();
+  var list = movementsDesc({ from: range.from, to: range.to });
+  var totalIn = list.reduce(function (sum, m) { return m.qty > 0 ? sum + m.qty : sum; }, 0);
+  var totalOut = list.reduce(function (sum, m) { return m.qty < 0 ? sum - m.qty : sum; }, 0);
+
+  var products = activeProducts();
+  var units = products.reduce(function (sum, p) { return sum + p.onHand; }, 0);
+  var cost = products.reduce(function (sum, p) { return sum + p.onHand * p.unitCost; }, 0);
+  var retail = products.reduce(function (sum, p) { return sum + p.onHand * p.unitPrice; }, 0);
+
+  var valuation = {};
+  products.forEach(function (p) {
+    if (!valuation[p.category]) valuation[p.category] = { category: p.category, units: 0, cost: 0, retail: 0 };
+    valuation[p.category].units += p.onHand;
+    valuation[p.category].cost += p.onHand * p.unitCost;
+    valuation[p.category].retail += p.onHand * p.unitPrice;
+  });
+  var valuationRows = Object.keys(valuation).map(function (key) { return valuation[key]; })
+    .sort(function (a, b) { return b.cost - a.cost; });
+
+  var outMap = {};
+  list.forEach(function (m) {
+    if (m.qty >= 0) return;
+    var p = productById(m.productId);
+    if (!outMap[m.productId]) outMap[m.productId] = { name: p ? p.name : "Removed product", sku: p ? p.sku : "", units: 0 };
+    outMap[m.productId].units += -m.qty;
+  });
+  var topOut = Object.keys(outMap).map(function (key) { return outMap[key]; })
+    .sort(function (a, b) { return b.units - a.units; }).slice(0, 8);
+
+  var html = pageHead("Reports", "Valuation and movement summary",
+    '<button type="button" class="btn ghost" data-click="export-range" data-from="' + esc(range.from) + '" data-to="' + esc(range.to) + '">Export movements</button>' +
+    '<button type="button" class="btn ghost" data-click="export-products">Export products</button>' +
+    '<button type="button" class="btn ghost" data-click="print">Print</button>');
+
+  html += '<div class="card" style="margin-bottom:18px"><div class="pad">' +
+    '<div class="row2" style="max-width:460px">' +
+      '<div class="field" style="margin:0"><label class="label" for="q-rfrom">From</label>' +
+        '<input class="input" id="q-rfrom" data-filter="reportFrom" type="date" value="' + esc(range.from) + '" /></div>' +
+      '<div class="field" style="margin:0"><label class="label" for="q-rto">To</label>' +
+        '<input class="input" id="q-rto" data-filter="reportTo" type="date" value="' + esc(range.to) + '" /></div>' +
+    "</div>" +
+  "</div></div>";
+
+  html += '<div class="stats">' +
+    '<div class="stat ok"><div class="k">Units received</div><div class="v">' + num(totalIn) + '</div><div class="h">Selected period</div></div>' +
+    '<div class="stat"><div class="k">Units issued</div><div class="v">' + num(totalOut) + '</div><div class="h">Selected period</div></div>' +
+    '<div class="stat brand"><div class="k">Stock on hand</div><div class="v">' + num(units) + '</div><div class="h">' +
+      num(products.filter(function (p) { return p.onHand > 0; }).length) + " active SKUs</div></div>" +
+    '<div class="stat"><div class="k">Stock value</div><div class="v">' + money(cost) + '</div><div class="h">' + money(retail) + " at selling price</div></div>" +
+  "</div>";
+
+  html += '<div class="cols" style="margin-top:18px">' +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Valuation by category</h2><span>Current stock</span></div>' +
+      (valuationRows.length
+        ? '<div style="overflow-x:auto"><table style="min-width:520px"><thead><tr>' +
+            '<th>Category</th><th class="r">Units</th><th class="r">At cost</th><th class="r">At retail</th>' +
+          "</tr></thead><tbody>" +
+            valuationRows.map(function (row) {
+              return "<tr class=\"hover\"><td>" + esc(row.category) + "</td>" +
+                '<td class="r num">' + num(row.units) + "</td>" +
+                '<td class="r num">' + money(row.cost) + "</td>" +
+                '<td class="r num muted">' + money(row.retail) + "</td></tr>";
+            }).join("") +
+            '<tr><td class="white" style="font-weight:600">Total</td>' +
+              '<td class="r num white" style="font-weight:600">' + num(units) + "</td>" +
+              '<td class="r num white" style="font-weight:600">' + money(cost) + "</td>" +
+              '<td class="r num white" style="font-weight:600">' + money(retail) + "</td></tr>" +
+          "</tbody></table></div>"
+        : emptyBox("No stock to value", "Add products and record receipts to build a valuation.")) +
+    "</div>" +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Most issued</h2><span>' + esc(range.from) + " → " + esc(range.to) + "</span></div>" +
+      (topOut.length
+        ? '<div style="overflow-x:auto"><table><thead><tr><th>Product</th><th class="r">Units out</th></tr></thead><tbody>' +
+            topOut.map(function (row) {
+              return "<tr class=\"hover\"><td>" + esc(row.name) + '<div class="mono muted">' + esc(row.sku) + "</div></td>" +
+                '<td class="r num">' + num(row.units) + "</td></tr>";
+            }).join("") +
+          "</tbody></table></div>"
+        : emptyBox("No issues in this period", "Pick a wider date range, or record an issue on the movements page.")) +
+    "</div>" +
+  "</div>";
+
+  var days = Math.max((new Date(range.to) - new Date(range.from)) / 86400000, 0) + 1;
+  html += '<div class="card" style="margin-top:18px">' +
+    '<div class="card-h"><h2>Period summary</h2><span>' + num(list.length) + " ledger entries</span></div>" +
+    '<div class="pad"><dl style="margin:0">' +
+      '<div class="kv"><dt>Entries in range</dt><dd>' + num(list.length) + "</dd></div>" +
+      '<div class="kv"><dt>Units received</dt><dd>' + num(totalIn) + "</dd></div>" +
+      '<div class="kv"><dt>Units issued</dt><dd>' + num(totalOut) + "</dd></div>" +
+      '<div class="kv"><dt>Net movement</dt><dd>' + qtyText(totalIn - totalOut) + "</dd></div>" +
+      '<div class="kv"><dt>Average entries per day</dt><dd>' + (list.length ? (list.length / days).toFixed(1) : "0.0") + "</dd></div>" +
+    "</dl></div>" +
+  "</div>";
+
+  return html;
+}
+
+function viewSettings() {
+  var owner = isOwner();
+  var user = currentUser();
+  var bytes = JSON.stringify(state.db).length;
+  var size = bytes > 1024 ? (bytes / 1024).toFixed(1) + " KB" : bytes + " bytes";
+
+  var html = pageHead("Settings", "Workspace, data and access");
+
+  html += '<div class="cols-2">' +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Workspace</h2><span>' + (owner ? "Owner controlled" : "Read-only for your role") + "</span></div>" +
+      '<div class="pad">' +
+        (owner
+          ? '<form data-action="settings">' +
+              '<div class="field"><label class="label" for="w-org">Organisation name</label>' +
+                '<input class="input" id="w-org" name="org" value="' + esc(state.db.settings.org) + '" /></div>' +
+              '<div class="field"><label class="label" for="w-currency">Currency</label>' +
+                '<select class="input" id="w-currency" name="currency">' +
+                  [["EUR", "Euro"], ["USD", "US dollar"], ["GBP", "Pound"], ["INR", "Indian rupee"], ["SEK", "Swedish krona"]].map(function (pair) {
+                    return '<option value="' + pair[0] + '"' + (currency() === pair[0] ? " selected" : "") + ">" + pair[1] + " (" + pair[0] + ")</option>";
+                  }).join("") +
+                "</select></div>" +
+              '<button class="btn primary" type="submit">Save workspace</button>' +
+            "</form>"
+          : '<dl style="margin:0"><div class="kv"><dt>Organisation</dt><dd>' + esc(state.db.settings.org) + "</dd></div>" +
+            '<div class="kv"><dt>Currency</dt><dd>' + esc(currency()) + "</dd></div></dl>") +
+      "</div>" +
+    "</div>" +
+    '<div class="card">' +
+      '<div class="card-h"><h2>This browser</h2><span>Local storage</span></div>' +
+      '<div class="pad"><dl style="margin:0">' +
+        '<div class="kv"><dt>Data size</dt><dd>' + esc(size) + "</dd></div>" +
+        '<div class="kv"><dt>Products</dt><dd>' + num(state.db.products.length) + "</dd></div>" +
+        '<div class="kv"><dt>Movements</dt><dd>' + num(state.db.movements.length) + "</dd></div>" +
+        '<div class="kv"><dt>Accounts</dt><dd>' + num(state.db.users.length) + "</dd></div>" +
+        '<div class="kv"><dt>Signed in as</dt><dd>' + esc(user.name) + " · " + esc(user.role) + "</dd></div>" +
+      "</dl>" +
+      '<p class="note">Everything is stored on this device only. Clearing browser data deletes the workspace, so keep a backup.</p></div>' +
+    "</div>" +
+  "</div>";
+
+  html += '<div class="card" style="margin-top:18px">' +
+    '<div class="card-h"><h2>Data</h2><span>Export, import, sample</span></div>' +
+    '<div class="pad">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+        '<button type="button" class="btn ghost" data-click="export-products">Export products</button>' +
+        '<button type="button" class="btn ghost" data-click="export-movements">Export movements</button>' +
+        '<button type="button" class="btn ghost" data-click="export-reorder">Export reorder list</button>' +
+        '<button type="button" class="btn ghost" data-click="export-template">CSV template</button>' +
+        '<button type="button" class="btn ghost" data-click="backup">Download backup</button>' +
+      "</div>" +
+      '<div class="divider"></div>' +
+      '<div class="row2">' +
+        '<div class="field" style="margin:0"><label class="label" for="import-file">Import products (CSV)</label>' +
+          '<input class="input" id="import-file" type="file" accept=".csv,text/csv" data-file="import"' + (canWrite() ? "" : " disabled") + " />" +
+          '<p class="note">Matches on SKU. Existing products are updated; new ones are created. Opening stock only applies to new rows.</p></div>' +
+        '<div class="field" style="margin:0"><label class="label" for="restore-file">Restore backup (JSON)</label>' +
+          '<input class="input" id="restore-file" type="file" accept=".json,application/json" data-file="restore"' + (owner ? "" : " disabled") + " />" +
+          '<p class="note">Replaces the entire workspace with the contents of the backup file.</p></div>' +
+      "</div>" +
+      (owner
+        ? '<div class="divider"></div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">' +
+            '<div><b class="white" style="font-size:13px">Sample catalogue</b><p class="sub">Loads 8 products and 3 suppliers. Only works when the catalogue is empty.</p></div>' +
+            '<button type="button" class="btn ghost" data-click="seed"' + (state.db.products.length ? " disabled" : "") + ">Load sample data</button>" +
+          "</div>" +
+          '<div class="divider"></div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">' +
+            '<div><b class="white" style="font-size:13px">Delete workspace data</b><p class="sub">Removes products, movements, suppliers and accounts from this browser. Cannot be undone.</p></div>' +
+            '<button type="button" class="btn danger" data-click="clear-data">Delete all data</button>' +
+          "</div>"
+        : "") +
+    "</div>" +
+  "</div>";
+
+  var teamRows = state.db.users.map(function (member) {
+    return "<tr class=\"hover\">" +
+      "<td><b class=\"white\">" + esc(member.name) + "</b>" + (member.id === user.id ? ' <span class="pill in">You</span>' : "") +
+        '<div class="sub">' + esc(member.email) + "</div></td>" +
+      '<td><span class="pill outm">' + esc(member.role) + "</span></td>" +
+      "<td>" + (member.active === false ? '<span class="pill out">Inactive</span>' : '<span class="pill ok">Active</span>') + "</td>" +
+      '<td class="r nowrap">' +
+        (owner && member.id !== user.id
+          ? '<button type="button" class="btn ghost sm" data-click="user-toggle" data-id="' + esc(member.id) + '">' + (member.active === false ? "Activate" : "Deactivate") + "</button>"
+          : "") +
+      "</td>" +
+    "</tr>";
+  }).join("");
+
+  html += '<div class="cols-2" style="margin-top:18px">' +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Your password</h2><span>' + esc(user.email) + "</span></div>" +
+      '<div class="pad"><form data-action="change-password">' +
+        '<div class="field"><label class="label" for="c-current">Current password</label>' +
+          '<input class="input" id="c-current" name="current" type="password" autocomplete="current-password" /></div>' +
+        '<div class="row2">' +
+          '<div class="field"><label class="label" for="c-new">New password</label>' +
+            '<input class="input" id="c-new" name="next" type="password" autocomplete="new-password" /></div>' +
+          '<div class="field"><label class="label" for="c-confirm">Confirm</label>' +
+            '<input class="input" id="c-confirm" name="confirm" type="password" autocomplete="new-password" /></div>' +
+        "</div>" +
+        '<button class="btn primary" type="submit">Update password</button>' +
+      "</form></div>" +
+    "</div>" +
+    '<div class="card">' +
+      '<div class="card-h"><h2>Team</h2><span>' + num(state.db.users.length) + " account(s)</span></div>" +
+      '<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>' + teamRows + "</tbody></table></div>" +
+      (owner
+        ? '<div class="pad" style="border-top:1px solid var(--line)">' +
+            '<form data-action="user-create">' +
+              '<div class="row2">' +
+                '<div class="field"><label class="label" for="u-name">Name</label><input class="input" id="u-name" name="name" /></div>' +
+                '<div class="field"><label class="label" for="u-email">Email</label><input class="input" id="u-email" name="email" type="email" /></div>' +
+              "</div>" +
+              '<div class="row2">' +
+                '<div class="field"><label class="label" for="u-role">Role</label>' +
+                  '<select class="input" id="u-role" name="role"><option value="manager">Manager</option><option value="viewer">Viewer</option><option value="owner">Owner</option></select></div>' +
+                '<div class="field"><label class="label" for="u-pass">Password</label><input class="input" id="u-pass" name="password" type="password" autocomplete="new-password" /></div>' +
+              "</div>" +
+              '<button class="btn primary" type="submit">Add account</button>' +
+            "</form>" +
+            '<div class="divider"></div>' +
+            '<form data-action="user-password">' +
+              '<div class="row2">' +
+                '<div class="field"><label class="label" for="r-user">Reset password for</label>' +
+                  '<select class="input" id="r-user" name="user_id">' + state.db.users.map(function (member) {
+                    return '<option value="' + esc(member.id) + '">' + esc(member.name) + " · " + esc(member.email) + "</option>";
+                  }).join("") + "</select></div>" +
+                '<div class="field"><label class="label" for="r-pass">New password</label>' +
+                  '<input class="input" id="r-pass" name="password" type="password" autocomplete="new-password" /></div>' +
+              "</div>" +
+              '<button class="btn ghost" type="submit">Reset password</button>' +
+            "</form>" +
+          "</div>"
+        : '<div class="pad" style="border-top:1px solid var(--line)"><p class="sub">Only the workspace owner can add accounts or reset passwords.</p></div>') +
+    "</div>" +
+  "</div>";
+
+  html += '<div class="card" style="margin-top:18px">' +
+    '<div class="card-h"><h2>About</h2><span>StockFlow 1.0 · single file</span></div>' +
+    '<div class="pad"><p class="sub">StockFlow runs entirely in this browser: no server, no install, no network calls. Passwords are hashed with PBKDF2-SHA256 (210,000 iterations) and stored with the rest of the workspace in local storage.</p>' +
+    '<p class="note">Roles: <b>owner</b> manages the workspace and accounts · <b>manager</b> records stock and edits the catalogue · <b>viewer</b> can only read and export.</p></div>' +
+  "</div>";
+
+  return html;
+}
+
+/* ---------------------------------------------------------------- handlers */
+function fieldValue(form, name) {
+  var el = form.elements[name];
+  return el && typeof el.value === "string" ? el.value : "";
+}
+
+function validEmail(value) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+}
+
+function saveSettings(form) {
+  if (!isOwner()) throw new Error("Only the workspace owner can change these settings.");
+  var org = (fieldValue(form, "org") || "").trim();
+  var nextCurrency = fieldValue(form, "currency");
+  if (org.length < 2) throw new Error("Enter an organisation name.");
+  if (["EUR", "USD", "GBP", "INR", "SEK"].indexOf(nextCurrency) < 0) throw new Error("Choose a supported currency.");
+  commit(function () {
+    state.db.settings.org = org;
+    state.db.settings.currency = nextCurrency;
+    logAudit("settings.update", "workspace", null, { org: org, currency: nextCurrency });
+  });
+  toast("ok", "Workspace settings saved.");
+}
+
+function changePassword(form) {
+  var user = currentUser();
+  if (!user) throw new Error("Sign in again.");
+  var current = fieldValue(form, "current");
+  var next = fieldValue(form, "next");
+  var confirm = fieldValue(form, "confirm");
+  if (next.length < 8) throw new Error("Use at least 8 characters for the new password.");
+  if (next !== confirm) throw new Error("The new passwords do not match.");
+
+  verifyPassword(current, user.password).then(function (ok) {
+    if (!ok) { toast("error", "The current password is not correct."); return; }
+    return createPasswordRecord(next).then(function (record) {
+      user.password = record;
+      logAudit("user.password", "user", user.id, null);
+      saveDb();
+      render();
+      toast("ok", "Password updated.");
+    });
+  }).catch(function (error) { toast("error", error.message); });
+}
+
+function createUser(form) {
+  if (!isOwner()) throw new Error("Only the workspace owner can add accounts.");
+  var name = (fieldValue(form, "name") || "").trim();
+  var email = (fieldValue(form, "email") || "").trim().toLowerCase();
+  var role = fieldValue(form, "role");
+  var password = fieldValue(form, "password");
+
+  if (name.length < 2) throw new Error("Enter a name for the account.");
+  if (!validEmail(email)) throw new Error("Enter a valid email address.");
+  if (state.db.users.some(function (u) { return String(u.email).toLowerCase() === email; })) throw new Error("An account with that email already exists.");
+  if (["owner", "manager", "viewer"].indexOf(role) < 0) throw new Error("Choose a valid role.");
+  if (password.length < 8) throw new Error("Use at least 8 characters for the password.");
+
+  createPasswordRecord(password).then(function (record) {
+    var user = { id: uid(), name: name, email: email, role: role, active: true, createdAt: nowISO(), password: record };
+    state.db.users.push(user);
+    logAudit("user.create", "user", user.id, { email: email, role: role });
+    saveDb();
+    render();
+    toast("ok", name + " can now sign in.");
+  }).catch(function (error) { toast("error", error.message); });
+}
+
+function resetPassword(form) {
+  if (!isOwner()) throw new Error("Only the workspace owner can reset passwords.");
+  var user = userById(fieldValue(form, "user_id"));
+  var password = fieldValue(form, "password");
+  if (!user) throw new Error("Choose an account.");
+  if (password.length < 8) throw new Error("Use at least 8 characters for the password.");
+
+  createPasswordRecord(password).then(function (record) {
+    user.password = record;
+    logAudit("user.password.reset", "user", user.id, null);
+    saveDb();
+    render();
+    toast("ok", "Password reset for " + user.name + ".");
+  }).catch(function (error) { toast("error", error.message); });
+}
+
+function toggleUser(id) {
+  if (!isOwner()) throw new Error("Only the workspace owner can change access.");
+  var user = userById(id);
+  if (!user) throw new Error("Account not found.");
+  var next = user.active === false;
+  commit(function () {
+    user.active = next;
+    logAudit(next ? "user.activate" : "user.deactivate", "user", id, null);
+  });
+  toast("ok", user.name + (next ? " can sign in again." : " has been deactivated."));
+}
+
+function doLogout() {
+  logAudit("auth.logout", "user", state.user ? state.user.id : null, null);
+  try { saveDb(); } catch (error) { /* storage may be full; still sign out */ }
+  clearSession();
+  state.user = null;
+  if (location.hash !== "#/dashboard") location.hash = "#/dashboard";
+  render();
+  toast("ok", "Signed out.");
+}
+
+function clearAllData() {
+  if (!isOwner()) throw new Error("Only the workspace owner can delete the workspace.");
+  if (!window.confirm("Delete every product, movement, supplier and account stored in this browser?")) return;
+  var typed = window.prompt("Type DELETE to confirm. This cannot be undone.");
+  if (typed !== "DELETE") { toast("error", "Nothing was deleted."); return; }
+  try { localStorage.removeItem(DB_KEY); } catch (error) { /* ignore */ }
+  clearSession();
+  state.db = defaultDb();
+  state.user = null;
+  saveDb();
+  render();
+  toast("ok", "Workspace cleared.");
+}
+
+function resetStorage() {
+  if (!window.confirm("Clear the saved workspace from this browser? A backup file can be restored afterwards.")) return;
+  try { localStorage.removeItem(DB_KEY); } catch (error) { /* ignore */ }
+  clearSession();
+  location.reload();
+}
+
+function exportRange(from, to) {
+  var list = movementsDesc({ from: from, to: to });
+  var rows = [["date", "sku", "product", "type", "change", "unit", "unit_cost", "reason", "reference", "note", "user"]];
+  list.forEach(function (m) {
+    var p = productById(m.productId);
+    rows.push([
+      m.at, p ? p.sku : "", p ? p.name : "", m.kind, m.qty, p ? p.unit : "",
+      m.unitCost === null ? "" : (m.unitCost / 100).toFixed(2),
+      m.reason || "", m.reference || "", m.note || "", m.userName || ""
+    ]);
+  });
+  download("stockflow-movements-" + from + "_" + to + ".csv", toCsv(rows));
+  toast("ok", "Movements exported.");
+}
+
+function readCsvFile(file) {
+  if (!canWrite()) throw new Error("Your role is read-only.");
+  var reader = new FileReader();
+  reader.onload = function () {
+    try { importProducts(String(reader.result)); }
+    catch (error) { toast("error", error.message); }
+  };
+  reader.onerror = function () { toast("error", "That file could not be read."); };
+  reader.readAsText(file);
+}
+
+function restoreBackup(file) {
+  if (!isOwner()) throw new Error("Only the workspace owner can restore a backup.");
+  var reader = new FileReader();
+  reader.onload = function () {
+    try {
+      var parsed = JSON.parse(String(reader.result));
+      if (!parsed || !Array.isArray(parsed.products) || !Array.isArray(parsed.users) || !Array.isArray(parsed.movements) || !Array.isArray(parsed.suppliers)) {
+        throw new Error("That file is not a StockFlow backup.");
+      }
+      if (!window.confirm("Replace the current workspace with this backup? Everything currently stored will be overwritten.")) return;
+      state.db = normaliseDb(parsed);
+      clearSession();
+      state.user = null;
+      saveDb();
+      render();
+      toast("ok", "Backup restored. Sign in with an account from the backup.");
+    } catch (error) {
+      toast("error", error.message);
+    }
+  };
+  reader.onerror = function () { toast("error", "That file could not be read."); };
+  reader.readAsText(file);
+}
+
+function onSubmit(event) {
+  var form = event.target;
+  var action = form && form.getAttribute ? form.getAttribute("data-action") : null;
+  if (!action) return;
+  event.preventDefault();
+
+  try {
+    switch (action) {
+      case "login": doLogin(form); return;
+      case "setup": doSetup(form); return;
+      case "product-create": createProduct(form); return;
+      case "product-update": updateProduct(form); return;
+      case "supplier-save": saveSupplier(form); return;
+      case "settings": saveSettings(form); return;
+      case "change-password": changePassword(form); return;
+      case "user-create": createUser(form); return;
+      case "user-password": resetPassword(form); return;
+      case "movement":
+        recordMovement({
+          productId: fieldValue(form, "product_id"),
+          kind: fieldValue(form, "kind"),
+          quantity: fieldValue(form, "quantity"),
+          unitCost: fieldValue(form, "unit_cost"),
+          counted: fieldValue(form, "counted"),
+          reason: (fieldValue(form, "reason") || "").trim(),
+          reference: (fieldValue(form, "reference") || "").trim(),
+          note: (fieldValue(form, "note") || "").trim()
+        });
+        return;
+      default: return;
+    }
+  } catch (error) {
+    toast("error", error.message);
+  }
+}
+
+function onClick(event) {
+  var el = event.target && event.target.closest ? event.target.closest("[data-click]") : null;
+  if (!el) return;
+  var action = el.getAttribute("data-click");
+  var id = el.getAttribute("data-id");
+
+  try {
+    switch (action) {
+      case "logout": doLogout(); return;
+      case "reset-storage": resetStorage(); return;
+      case "seed": seedSample(); return;
+      case "backup": backupJson(); return;
+      case "export-products": exportProducts(); return;
+      case "export-movements": exportMovements(); return;
+      case "export-reorder": exportReorder(); return;
+      case "export-template": exportTemplate(); return;
+      case "export-range": exportRange(el.getAttribute("data-from"), el.getAttribute("data-to")); return;
+      case "print": window.print(); return;
+      case "product-archive": setArchived(id, true); return;
+      case "product-restore": setArchived(id, false); return;
+      case "supplier-new": state.editSupplier = null; render(); return;
+      case "supplier-edit": state.editSupplier = id; render(); return;
+      case "supplier-archive": setSupplierArchived(id, true); return;
+      case "supplier-restore": setSupplierArchived(id, false); return;
+      case "user-toggle": toggleUser(id); return;
+      case "clear-data": clearAllData(); return;
+      case "clear-product-filters":
+        state.filters.productSearch = "";
+        state.filters.productCategory = "all";
+        state.filters.productStatus = "all";
+        state.filters.productArchived = false;
+        render();
+        return;
+      case "clear-movement-filters":
+        state.filters.movementProduct = "";
+        state.filters.movementKind = "all";
+        state.filters.movementFrom = "";
+        state.filters.movementTo = "";
+        render();
+        return;
+      default: return;
+    }
+  } catch (error) {
+    toast("error", error.message);
+  }
+}
+
+function applyFilter(el) {
+  var key = el.getAttribute("data-filter");
+  if (!key) return;
+  state.filters[key] = el.type === "checkbox" ? el.checked : el.value;
+  render();
+}
+
+function onInput(event) {
+  var el = event.target;
+  if (!el || el.tagName === "SELECT") return;
+  if (el.type === "checkbox" || el.type === "radio") return;
+  if (el.getAttribute("data-filter")) applyFilter(el);
+}
+
+function onChange(event) {
+  var el = event.target;
+  if (!el) return;
+
+  if (el.getAttribute("data-filter")) { applyFilter(el); return; }
+
+  if (el.getAttribute("data-role") === "movement-kind" && el.form) {
+    syncMovementFields(el.form);
+    return;
+  }
+
+  var fileKind = el.getAttribute("data-file");
+  if (fileKind && el.files && el.files[0]) {
+    try {
+      if (fileKind === "import") readCsvFile(el.files[0]);
+      if (fileKind === "restore") restoreBackup(el.files[0]);
+    } catch (error) {
+      toast("error", error.message);
+    }
+  }
+}
+
+/* ----------------------------------------------------------------- router */
+function parseRoute() {
+  return String(location.hash || "").replace(/^#/, "").split("?")[0].split("/").filter(Boolean);
+}
+
+function navigate(hash) {
+  if (location.hash === hash) render();
+  else location.hash = hash;
+}
+
+function render() {
+  var root = $("#root");
+  if (!root || !state.db) return;
+
+  var activeEl = document.activeElement;
+  var focusId = activeEl && activeEl.id && root.contains(activeEl) ? activeEl.id : null;
+  var selStart = null;
+  var selEnd = null;
+  if (focusId && activeEl.setSelectionRange) {
+    try { selStart = activeEl.selectionStart; selEnd = activeEl.selectionEnd; } catch (error) { /* not a text field */ }
+  }
+  var scrollY = window.pageYOffset || 0;
+
+  var user = currentUser();
+  if (!user) {
+    state.user = null;
+    root.innerHTML = viewAuth();
+    window.scrollTo(0, 0);
+    return;
+  }
+  state.user = user;
+
+  var parts = parseRoute();
+  var section = parts[0] || "dashboard";
+  var active = "#/dashboard";
+  var html = "";
+
+  if (section === "products") {
+    active = "#/products";
+    if (parts[1] === "new") html = viewProductNew();
+    else if (parts[1]) html = viewProduct(parts[1]);
+    else html = viewProducts();
+  } else if (section === "movements") {
+    active = "#/movements";
+    html = viewMovements();
+  } else if (section === "suppliers") {
+    active = "#/suppliers";
+    html = viewSuppliers();
+  } else if (section === "reorder") {
+    active = "#/reorder";
+    html = viewReorder();
+  } else if (section === "reports") {
+    active = "#/reports";
+    html = viewReports();
+  } else if (section === "settings") {
+    active = "#/settings";
+    html = viewSettings();
+  } else {
+    html = viewDashboard();
+  }
+
+  root.innerHTML = shell(active, html);
+
+  if (focusId) {
+    var next = document.getElementById(focusId);
+    if (next) {
+      try { next.focus({ preventScroll: true }); } catch (error) { next.focus(); }
+      if (selStart !== null && next.setSelectionRange) {
+        try { next.setSelectionRange(selStart, selEnd); } catch (error) { /* ignore */ }
+      }
+    }
+  }
+  window.scrollTo(0, scrollY);
+
+  var forms = root.querySelectorAll('form[data-action="movement"]');
+  for (var i = 0; i < forms.length; i++) syncMovementFields(forms[i]);
+}
+
+/* ------------------------------------------------------------------- boot */
+function showFatal(message) {
+  var root = $("#root");
+  if (!root) return;
+  root.innerHTML = '<div class="auth"><div class="authbox">' +
+    '<div class="authbrand"><div class="mark">SF</div><div><b style="display:block;color:#fff;font-size:14px">StockFlow</b>' +
+      '<span style="display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)">Inventory control</span></div></div>' +
+    '<div class="authcard">' +
+      "<h1>StockFlow could not start</h1>" +
+      '<p class="lede">' + esc(message) + "</p>" +
+      '<button class="btn danger" type="button" data-click="reset-storage">Clear saved data</button>' +
+      '<p class="note">Clearing removes the workspace from this browser. If you have a backup file, clear the data, reload, then restore the backup from Settings.</p>' +
+    "</div>" +
+  "</div></div>";
+}
+
+function boot() {
+  try {
+    state.db = loadDb();
+  } catch (error) {
+    showFatal(error.message);
+    document.addEventListener("click", onClick);
+    return;
+  }
+
+  var session = readSession();
+  if (session) {
+    var user = userById(session.userId);
+    if (user && user.active !== false) state.user = user;
+    else clearSession();
+  }
+
+  window.addEventListener("hashchange", render);
+  document.addEventListener("submit", onSubmit);
+  document.addEventListener("click", onClick);
+  document.addEventListener("input", onInput);
+  document.addEventListener("change", onChange);
+
+  if (!location.hash) {
+    try { history.replaceState(null, "", "#/dashboard"); }
+    catch (error) { location.hash = "#/dashboard"; }
+  }
+
+  render();
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #08090c;
+}
+
+body {
+  @apply text-silver antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::selection {
+  background: rgba(22, 75, 255, 0.35);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #08090c;
+}
+::-webkit-scrollbar-thumb {
+  background: #262e3a;
+  border-radius: 999px;
+  border: 2px solid #08090c;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-panel shadow-panel;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-silver outline-none transition placeholder:text-muted/60 focus:border-brand/60 focus:ring-2 focus:ring-brand/20;
+  }
+
+  select.input {
+    @apply appearance-none bg-[length:14px] bg-[right_0.65rem_center] bg-no-repeat pr-8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238b97a8'%3E%3Cpath d='M5.5 7.5 10 12l4.5-4.5'/%3E%3C/svg%3E");
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-[#2a5cff];
+  }
+
+  .btn-ghost {
+    @apply btn border border-line bg-panel2 text-silver hover:border-[#33404f] hover:bg-[#19202a];
+  }
+
+  .btn-danger {
+    @apply btn border border-[#5c2a30] bg-[#2a161a] text-[#ff9c9c] hover:bg-[#341a1f];
+  }
+
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  .th {
+    @apply px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-muted;
+  }
+
+  .td {
+    @apply px-4 py-3 text-sm;
+  }
+
+  .row-hover {
+    @apply transition hover:bg-panel2/60;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold;
+  }
+
+  .link {
+    @apply text-brand underline-offset-2 hover:underline;
+  }
+}
+
+.grid-bg {
+  background-image:
+    radial-gradient(circle at 12% -10%, rgba(22, 75, 255, 0.16), transparent 42%),
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
