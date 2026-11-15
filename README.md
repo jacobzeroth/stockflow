@@ -4,7 +4,8 @@ Inventory control for small teams. A rebuild of the single-file `zeroth_stockflo
 prototype as a real server-backed application: hashed authentication, a Postgres ledger,
 stock integrity enforced by the database, reorder workflow and CSV import/export.
 
-Live: https://stockflow-zeroth.vercel.app
+Live (server build): https://stockflow-kohl-chi.vercel.app — needs `DATABASE_URL`, see
+[Deployment](#deployment).
 
 ## Single-file build
 
@@ -20,6 +21,10 @@ Live: https://stockflow-html.vercel.app (static deployment of `stockflow-html/in
   import/export and owner / manager / viewer roles as the server build.
 - Accounts, products and movements are created inside the file on first run — there is no
   seeded password and no network call.
+
+To publish it as a plain static site, copy `public/stockflow.html` to `index.html` in an
+empty directory, add `standalone/vercel.json` beside it, then run `vercel --prod`. That is
+exactly how https://stockflow-html.vercel.app is deployed.
 
 ## What it does
 
