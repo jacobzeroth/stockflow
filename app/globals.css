@@ -101,7 +101,87 @@ body {
 }
 
 @media print {
-  .no-print {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  body * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  body,
+  h1,
+  h2,
+  h3,
+  p,
+  span,
+  a,
+  td,
+  th,
+  dt,
+  dd {
+    color: #111827 !important;
+  }
+
+  .no-print,
+  .print-hide,
+  .mobile-nav {
     display: none !important;
   }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .app-shell {
+    display: block !important;
+  }
+
+  .app-content {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .bg-panel,
+  .bg-panel2,
+  .bg-panel2\/60,
+  .grid-bg {
+    background: #ffffff !important;
+  }
+
+  .border-line,
+  .border-line\/60 {
+    border-color: #d7dde6 !important;
+  }
+
+  .pill {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+  }
+
+  table {
+    width: 100% !important;
+  }
+
+  .td,
+  .th {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+.print-only {
+  display: none;
 }

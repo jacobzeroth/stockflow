@@ -4,10 +4,12 @@ import {
   deleteEverythingAction,
   loadDemoDataAction,
   toggleUserAction,
+  updateWorkspaceAction,
 } from "@/app/actions/inventory";
 import { requireUser } from "@/lib/auth";
 import { listUsers, listProducts } from "@/lib/data";
-import { ORG_NAME, CURRENCY } from "@/lib/config";
+import { getWorkspace } from "@/lib/workspace";
+import { CURRENCIES, currencyLabel } from "@/lib/currency";
 import { CardHeader, Flash, PageHeader, day } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,11 @@ export default async function SettingsPage({
   searchParams: { error?: string; ok?: string };
 }) {
   const user = await requireUser();
-  const [users, products] = await Promise.all([listUsers(), listProducts()]);
+  const [users, products, workspace] = await Promise.all([
+    listUsers(),
+    listProducts(),
+    getWorkspace(),
+  ]);
   const isOwner = user.role === "owner";
 
   return (
@@ -160,17 +166,59 @@ export default async function SettingsPage({
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">Name</dt>
-            <dd className="text-silver">{ORG_NAME}</dd>
+            <dd className="text-silver">{workspace.name}</dd>
           </div>
           <div>
             <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">Currency</dt>
-            <dd className="text-silver">{CURRENCY}</dd>
+            <dd className="text-silver">{currencyLabel(workspace.currency)}</dd>
           </div>
           <div>
             <dt className="text-[11px] uppercase tracking-[0.14em] text-muted">Database</dt>
             <dd className="text-silver">Postgres (server-side)</dd>
           </div>
         </dl>
+
+        {isOwner ? (
+          <form
+            action={updateWorkspaceAction}
+            className="mt-5 grid gap-3 border-t border-line pt-5 sm:grid-cols-[1fr_230px_auto] sm:items-end"
+          >
+            <div>
+              <label className="label" htmlFor="workspace-name">
+                Workspace name
+              </label>
+              <input
+                id="workspace-name"
+                name="name"
+                required
+                minLength={2}
+                maxLength={60}
+                defaultValue={workspace.name}
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="workspace-currency">
+                Currency
+              </label>
+              <select
+                id="workspace-currency"
+                name="currency"
+                defaultValue={workspace.currency}
+                className="input"
+              >
+                {CURRENCIES.map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn-ghost" type="submit">
+              Save workspace
+            </button>
+          </form>
+        ) : null}
 
         {isOwner ? (
           <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-5">

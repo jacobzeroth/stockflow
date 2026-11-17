@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { recordMovementAction, updateProductAction, archiveProductAction } from "@/app/actions/inventory";
 import { requireUser } from "@/lib/auth";
 import { getProduct, listMovements, listSuppliers } from "@/lib/data";
+import { getWorkspace } from "@/lib/workspace";
 import { ProductForm } from "@/components/product-form";
 import {
+  ArchivedBadge,
   CardHeader,
   Flash,
   KindBadge,
@@ -30,17 +32,19 @@ export default async function ProductPage({
   const product = await getProduct(params.id);
   if (!product) notFound();
 
-  const [suppliers, movements] = await Promise.all([
+  const [suppliers, movements, workspace] = await Promise.all([
     listSuppliers(),
     listMovements({ productId: product.id, limit: 60 }),
+    getWorkspace(),
   ]);
+  const currency = workspace.currency;
   const readOnly = user.role === "viewer";
   const returnTo = `/products/${product.id}`;
 
   return (
     <div>
       <div className="mb-4 text-xs text-muted">
-        <Link href="/products" className="hover:text-silver">
+        <Link href={product.archived_at ? "/products?archived=1" : "/products"} className="hover:text-silver">
           Products
         </Link>{" "}
         / <span className="text-silver">{product.name}</span>
@@ -48,6 +52,7 @@ export default async function ProductPage({
 
       <PageHeader title={product.name} subtitle={`${product.sku} · ${product.category} · per ${product.unit}`}>
         <StatusBadge product={product} />
+        {product.archived_at ? <ArchivedBadge /> : null}
         <a href={`/api/export/movements?product=${product.id}`} className="btn-ghost">
           Export history
         </a>
@@ -67,29 +72,30 @@ export default async function ProductPage({
 
       {product.archived_at ? (
         <div className="mb-5 rounded-lg border border-[#5a481f] bg-[#201c0d] px-4 py-3 text-sm text-[#f6ce74]">
-          This product is archived. It is hidden from the catalogue and reorder list, but its
-          movement history is preserved.
+          This product is archived. It is hidden from the catalogue, reorder list and stock
+          movements, but its movement history is preserved. Restore it to record new stock.
         </div>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="On hand" value={`${number(product.on_hand)} ${product.unit}`} tone={product.on_hand <= 0 ? "bad" : "default"} />
         <Stat label="Reorder level" value={number(product.reorder_level)} hint="Flag at or below" />
-        <Stat label="Unit cost" value={money(product.unit_cost)} hint="Weighted average" />
+        <Stat label="Unit cost" value={money(product.unit_cost, currency)} hint="Weighted average" />
         <Stat
           label="Stock value"
-          value={money(product.on_hand * product.unit_cost)}
-          hint={product.unit_price > 0 ? `${money(product.on_hand * product.unit_price)} at selling price` : undefined}
+          value={money(product.on_hand * product.unit_cost, currency)}
+          hint={product.unit_price > 0 ? `${money(product.on_hand * product.unit_price, currency)} at selling price` : undefined}
           tone="brand"
         />
       </div>
 
-      {!readOnly ? (
+      {!readOnly && !product.archived_at ? (
         <div className="mt-5 grid gap-5 xl:grid-cols-3">
           <form action={recordMovementAction} className="card p-4">
             <input type="hidden" name="product_id" value={product.id} />
             <input type="hidden" name="kind" value="in" />
             <input type="hidden" name="return_to" value={returnTo} />
+            <input type="hidden" name="request_id" value={crypto.randomUUID()} />
             <h2 className="text-sm font-semibold text-white">Receive stock</h2>
             <p className="mb-3 mt-0.5 text-xs text-muted">Purchase receipts and returns to stock.</p>
             <label className="label" htmlFor="in-qty">
@@ -121,6 +127,7 @@ export default async function ProductPage({
             <input type="hidden" name="product_id" value={product.id} />
             <input type="hidden" name="kind" value="out" />
             <input type="hidden" name="return_to" value={returnTo} />
+            <input type="hidden" name="request_id" value={crypto.randomUUID()} />
             <h2 className="text-sm font-semibold text-white">Issue stock</h2>
             <p className="mb-3 mt-0.5 text-xs text-muted">
               Sales, production use or write-offs. Cannot go below zero.
@@ -146,6 +153,7 @@ export default async function ProductPage({
             <input type="hidden" name="product_id" value={product.id} />
             <input type="hidden" name="kind" value="adjust" />
             <input type="hidden" name="return_to" value={returnTo} />
+            <input type="hidden" name="request_id" value={crypto.randomUUID()} />
             <h2 className="text-sm font-semibold text-white">Adjust to count</h2>
             <p className="mb-3 mt-0.5 text-xs text-muted">
               Enter the physical count. The ledger records the difference.
@@ -228,7 +236,7 @@ export default async function ProductPage({
               <Row label="Category" value={product.category} />
               <Row label="Unit" value={product.unit} />
               <Row label="Supplier" value={product.supplier_name ?? "Unassigned"} />
-              <Row label="Selling price" value={money(product.unit_price)} />
+              <Row label="Selling price" value={money(product.unit_price, currency)} />
               <Row label="Notes" value={product.notes ?? "—"} />
             </dl>
           ) : (

@@ -7,11 +7,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[236px_1fr]">
+    <div className="app-shell min-h-screen lg:grid lg:grid-cols-[236px_1fr]">
       <Sidebar userName={user.name} role={user.role} />
       <div className="min-w-0">
         <MobileNav />
-        <div className="mx-auto max-w-[1200px] px-4 py-6 lg:px-8 lg:py-8">{children}</div>
+        <div className="app-content mx-auto max-w-[1200px] px-4 py-6 lg:px-8 lg:py-8">{children}</div>
       </div>
     </div>
   );

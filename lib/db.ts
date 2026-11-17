@@ -1,7 +1,10 @@
-import { Pool, type PoolClient } from "pg";
+import pg from "pg";
+import type { PoolClient, Pool as PoolInstance } from "pg";
+
+const { Pool } = pg;
 
 const globalForDb = globalThis as unknown as {
-  sfPool?: Pool;
+  sfPool?: PoolInstance;
   sfSchema?: Promise<void>;
 };
 
@@ -59,10 +62,19 @@ const SCHEMA = [
     reference text,
     note text,
     created_by text references users(id) on delete set null,
+    request_id text,
     created_at timestamptz not null default now()
   )`,
+  `alter table movements add column if not exists request_id text`,
+  `create unique index if not exists movements_request_key on movements (request_id)`,
   `create index if not exists movements_product_idx on movements (product_id, created_at desc)`,
   `create index if not exists movements_created_idx on movements (created_at desc)`,
+  `create table if not exists workspace (
+    id integer primary key check (id = 1),
+    name text not null,
+    currency text not null,
+    updated_at timestamptz not null default now()
+  )`,
   `create table if not exists audit_log (
     id text primary key,
     user_id text,
@@ -86,7 +98,7 @@ function connectionString(): string {
   return url;
 }
 
-export function getPool(): Pool {
+export function getPool(): PoolInstance {
   if (!globalForDb.sfPool) {
     const url = connectionString();
     globalForDb.sfPool = new Pool({

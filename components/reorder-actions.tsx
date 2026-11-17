@@ -21,11 +21,3 @@ export function CopyButton({ text, label = "Copy order" }: { text: string; label
     </button>
   );
 }
-
-export function PrintButton() {
-  return (
-    <button type="button" onClick={() => window.print()} className="btn-ghost btn-sm no-print">
-      Print
-    </button>
-  );
-}

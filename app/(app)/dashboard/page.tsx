@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDashboard } from "@/lib/data";
+import { getWorkspace } from "@/lib/workspace";
 import {
   CardHeader,
   EmptyState,
@@ -24,7 +25,8 @@ export default async function DashboardPage({
   searchParams: { error?: string; ok?: string };
 }) {
   const user = await requireUser();
-  const data = await getDashboard();
+  const [data, workspace] = await Promise.all([getDashboard(), getWorkspace()]);
+  const currency = workspace.currency;
   const lowCount = data.products.filter((p) => stockStatus(p) !== "ok").length;
   const maxCategory = Math.max(...data.categories.map((c) => c.value), 1);
 
@@ -42,7 +44,7 @@ export default async function DashboardPage({
         {user.role !== "viewer" ? (
           <>
             <Link href="/movements" className="btn-ghost">
-              Record movement
+              Add stock
             </Link>
             <Link href="/products/new" className="btn-primary">
               New product
@@ -61,8 +63,8 @@ export default async function DashboardPage({
         />
         <Stat
           label="Stock value (cost)"
-          value={money(data.stockValue)}
-          hint={`${money(data.retailValue)} at selling price`}
+          value={money(data.stockValue, currency)}
+          hint={`${money(data.retailValue, currency)} at selling price`}
           tone="brand"
         />
         <Stat
@@ -161,7 +163,7 @@ export default async function DashboardPage({
                   <div key={category.name}>
                     <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                       <span className="truncate text-silver">{category.name}</span>
-                      <span className="shrink-0 tabular-nums text-muted">{money(category.value)}</span>
+                      <span className="shrink-0 tabular-nums text-muted">{money(category.value, currency)}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-panel2">
                       <div

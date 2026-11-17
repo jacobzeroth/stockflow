@@ -3,33 +3,31 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
-  hashPassword,
   insertUser,
-  passwordProblem,
   requireOwner,
   requireUser,
   requireWriter,
+  rotateSession,
   userCount,
-  verifyPassword,
 } from "@/lib/auth";
 import { newId, one, query, tx } from "@/lib/db";
 import { audit, withFlash } from "@/lib/audit";
 import { parseCsv } from "@/lib/csv";
+import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
+import { recordMovement, StockError } from "@/lib/stock";
+import { isSupportedCurrency } from "@/lib/currency";
+import { updateWorkspace } from "@/lib/workspace";
+import {
+  parseImportNumbers,
+  parseMoney,
+  parseOptionalMoney,
+  parseWholeNumber,
+} from "@/lib/validation";
 
 class ActionError extends Error {}
 
 const text = (form: FormData, key: string): string =>
   String(form.get(key) ?? "").trim();
-
-const integer = (form: FormData, key: string, fallback = 0): number => {
-  const value = Number(text(form, key));
-  return Number.isFinite(value) ? Math.trunc(value) : fallback;
-};
-
-const decimal = (form: FormData, key: string, fallback = 0): number => {
-  const value = Number(text(form, key));
-  return Number.isFinite(value) ? value : fallback;
-};
 
 const money = (value: number): number => Math.round(value * 100) / 100;
 
@@ -70,15 +68,17 @@ function readProduct(form: FormData): ProductRead {
   const name = text(form, "name");
   if (!sku) return { ok: false, error: "SKU is required." };
   if (name.length < 2) return { ok: false, error: "Product name is required." };
-  const unit_cost = decimal(form, "unit_cost");
-  const unit_price = decimal(form, "unit_price");
-  const reorder_level = integer(form, "reorder_level");
-  if (unit_cost < 0 || unit_price < 0) {
-    return { ok: false, error: "Cost and price cannot be negative." };
-  }
-  if (reorder_level < 0) {
-    return { ok: false, error: "Reorder level cannot be negative." };
-  }
+
+  const cost = parseMoney(text(form, "unit_cost"), "Unit cost");
+  if (!cost.ok) return { ok: false, error: cost.error };
+  const price = parseMoney(text(form, "unit_price"), "Selling price");
+  if (!price.ok) return { ok: false, error: price.error };
+  const reorder = parseWholeNumber(text(form, "reorder_level") || "0", {
+    min: 0,
+    label: "Reorder level",
+  });
+  if (!reorder.ok) return { ok: false, error: reorder.error };
+
   return {
     ok: true,
     input: {
@@ -86,9 +86,9 @@ function readProduct(form: FormData): ProductRead {
       name,
       category: text(form, "category") || "General",
       unit: text(form, "unit") || "unit",
-      unit_cost: money(unit_cost),
-      unit_price: money(unit_price),
-      reorder_level,
+      unit_cost: money(cost.value),
+      unit_price: money(price.value),
+      reorder_level: reorder.value,
       supplier_id: text(form, "supplier_id") || null,
       notes: text(form, "notes") || null,
     },
@@ -101,10 +101,17 @@ export async function createProductAction(form: FormData): Promise<void> {
   const parsed = readProduct(form);
   if (!parsed.ok) fail(target, parsed.error);
   const input = parsed.input;
-  const opening = integer(form, "opening_stock");
+  const openingParsed = parseWholeNumber(text(form, "opening_stock") || "0", {
+    min: 0,
+    label: "Opening stock",
+  });
+  if (!openingParsed.ok) fail(target, openingParsed.error);
+  const opening = openingParsed.value;
+
+  let productId = "";
 
   try {
-    await tx(async (client) => {
+    productId = await tx(async (client) => {
       const id = newId();
       await client.query(
         `insert into products (id, sku, name, category, unit, unit_cost, unit_price, reorder_level, supplier_id, notes)
@@ -126,13 +133,14 @@ export async function createProductAction(form: FormData): Promise<void> {
         await client.query(
           `insert into movements (id, product_id, kind, quantity, unit_cost, reason, created_by)
            values ($1,$2,'in',$3,$4,'Opening balance',$5)`,
-          [newId(), id, Math.abs(opening), input.unit_cost, user.id]
+          [newId(), id, opening, input.unit_cost, user.id]
         );
       }
       await audit(client, user, "product.create", "product", id, {
         sku: input.sku,
-        opening: Math.abs(opening),
+        opening,
       });
+      return id;
     });
   } catch (error) {
     const code = (error as { code?: string }).code;
@@ -140,7 +148,7 @@ export async function createProductAction(form: FormData): Promise<void> {
     fail(target, "Could not create the product. Check the details and try again.");
   }
 
-  done(target, `${input.name} created.`);
+  done(`/products/${productId}`, `${input.name} created.`);
 }
 
 export async function updateProductAction(form: FormData): Promise<void> {
@@ -178,7 +186,8 @@ export async function updateProductAction(form: FormData): Promise<void> {
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "23505") fail(target, `SKU ${input.sku} is already used by another product.`);
-    fail(target, error instanceof Error ? error.message : "Could not save changes.");
+    if (error instanceof ActionError) fail(target, error.message);
+    fail(target, "Could not save changes. Check the details and try again.");
   }
 
   done(target, "Product updated.");
@@ -189,13 +198,16 @@ export async function archiveProductAction(form: FormData): Promise<void> {
   const id = text(form, "id");
   const restore = text(form, "restore") === "1";
   const target = fromForm(form, "/products");
-  await tx(async (client) => {
-    await client.query(
+  const updated = await tx(async (client) => {
+    const result = await client.query(
       `update products set archived_at = ${restore ? "null" : "now()"} where id = $1`,
       [id]
     );
+    if (result.rowCount === 0) return false;
     await audit(client, user, restore ? "product.restore" : "product.archive", "product", id);
+    return true;
   });
+  if (!updated) fail(target, "Product not found.");
   done(target, restore ? "Product restored." : "Product archived.");
 }
 
@@ -212,93 +224,62 @@ export async function recordMovementAction(form: FormData): Promise<void> {
     fail(target, "Choose a movement type.");
   }
 
-  const reason = text(form, "reason") || (kind === "in" ? "Stock received" : kind === "out" ? "Stock issued" : "Stock count");
-  const reference = text(form, "reference") || null;
-  const note = text(form, "note") || null;
-  const suppliedCost = decimal(form, "unit_cost", -1);
+  let quantity: number | undefined;
+  let counted: number | undefined;
 
-  try {
-    await tx(async (client) => {
-      const productResult = await client.query<{
-        id: string;
-        name: string;
-        unit_cost: string;
-        reorder_level: number;
-      }>(
-        "select id, name, unit_cost::float8 as unit_cost, reorder_level from products where id = $1 for update",
-        [productId]
-      );
-      const product = productResult.rows[0];
-      if (!product) throw new ActionError("Product not found.");
-
-      const stockResult = await client.query<{ on_hand: number }>(
-        "select coalesce(sum(quantity), 0)::int as on_hand from movements where product_id = $1",
-        [productId]
-      );
-      const onHand = Number(stockResult.rows[0]?.on_hand ?? 0);
-
-      let delta = 0;
-      let unitCost: number | null = null;
-
-      if (kind === "adjust") {
-        const counted = integer(form, "counted", onHand);
-        delta = counted - onHand;
-        if (delta === 0) {
-          throw new ActionError(`Counted quantity matches stock on hand (${onHand}). Nothing to adjust.`);
-        }
-      } else {
-        const quantity = integer(form, "quantity");
-        if (quantity <= 0) throw new ActionError("Quantity must be greater than zero.");
-        delta = kind === "in" ? quantity : -quantity;
-        unitCost = suppliedCost >= 0 ? money(suppliedCost) : Number(product.unit_cost);
-      }
-
-      const next = onHand + delta;
-      if (next < 0) {
-        throw new ActionError(
-          `Not enough stock: ${product.name} has ${onHand}, cannot remove ${Math.abs(delta)}.`
-        );
-      }
-
-      await client.query(
-        `insert into movements (id, product_id, kind, quantity, unit_cost, reason, reference, note, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          newId(),
-          productId,
-          kind,
-          delta,
-          unitCost,
-          reason,
-          reference,
-          note,
-          user.id,
-        ]
-      );
-
-      // Weighted average cost on receipts keeps valuation honest.
-      if (kind === "in" && unitCost !== null && delta > 0) {
-        const incomingValue = delta * unitCost;
-        const existingValue = onHand * Number(product.unit_cost);
-        const average = (existingValue + incomingValue) / (onHand + delta);
-        await client.query("update products set unit_cost = $1 where id = $2", [
-          money(average),
-          productId,
-        ]);
-      }
-
-      await audit(client, user, `stock.${kind}`, "product", productId, {
-        delta,
-        reason,
-        reference,
-        balance: next,
-      });
+  if (kind === "adjust") {
+    const parsed = parseWholeNumber(text(form, "counted"), {
+      min: 0,
+      label: "Counted quantity",
     });
-  } catch (error) {
-    fail(target, error instanceof Error ? error.message : "Movement could not be recorded.");
+    if (!parsed.ok) fail(target, parsed.error);
+    counted = parsed.value;
+  } else {
+    const parsed = parseWholeNumber(text(form, "quantity"), {
+      min: 1,
+      label: "Quantity",
+    });
+    if (!parsed.ok) fail(target, parsed.error);
+    quantity = parsed.value;
   }
 
-  done(target, "Movement recorded.");
+  const suppliedCost = parseOptionalMoney(text(form, "unit_cost"));
+  if (!suppliedCost.ok) fail(target, suppliedCost.error);
+
+  const reason =
+    text(form, "reason") ||
+    (kind === "in" ? "Stock received" : kind === "out" ? "Stock issued" : "Stock count");
+  const reference = text(form, "reference") || null;
+  const note = text(form, "note") || null;
+  const requestId = text(form, "request_id") || null;
+
+  let duplicate = false;
+
+  try {
+    const result = await tx((client) =>
+      recordMovement(client, {
+        productId,
+        kind,
+        quantity,
+        counted,
+        unitCost: suppliedCost.value,
+        reason,
+        reference,
+        note,
+        requestId,
+        user: { id: user.id, name: user.name },
+      })
+    );
+    duplicate = result.duplicate;
+  } catch (error) {
+    if (error instanceof StockError) fail(target, error.message);
+    fail(target, "Movement could not be recorded. Try again.");
+  }
+
+  done(
+    target,
+    duplicate ? "This movement was already recorded — no duplicate posted." : "Movement recorded."
+  );
 }
 
 /* ----------------------------------------------------------------- suppliers */
@@ -310,23 +291,38 @@ export async function saveSupplierAction(form: FormData): Promise<void> {
   const name = text(form, "name");
   if (name.length < 2) fail(target, "Supplier name is required.");
 
+  const email = text(form, "email");
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    fail(target, "Enter a valid supplier email address.");
+  }
+
+  const lead = parseWholeNumber(text(form, "lead_time_days") || "7", {
+    min: 0,
+    max: 365,
+    label: "Lead time",
+  });
+  if (!lead.ok) fail(target, lead.error);
+
   const values = [
     name,
     text(form, "contact_name") || null,
-    text(form, "email") || null,
+    email || null,
     text(form, "phone") || null,
-    Math.max(integer(form, "lead_time_days", 7), 0),
+    lead.value,
     text(form, "notes") || null,
   ];
 
   if (id) {
-    await tx(async (client) => {
-      await client.query(
+    const updated = await tx(async (client) => {
+      const result = await client.query(
         `update suppliers set name=$1, contact_name=$2, email=$3, phone=$4, lead_time_days=$5, notes=$6 where id=$7`,
         [...values, id]
       );
+      if (result.rowCount === 0) return false;
       await audit(client, user, "supplier.update", "supplier", id, { name });
+      return true;
     });
+    if (!updated) fail(target, "Supplier not found.");
     done(target, "Supplier updated.");
   }
 
@@ -346,13 +342,16 @@ export async function archiveSupplierAction(form: FormData): Promise<void> {
   const user = await requireWriter();
   const id = text(form, "id");
   const restore = text(form, "restore") === "1";
-  await tx(async (client) => {
-    await client.query(
+  const updated = await tx(async (client) => {
+    const result = await client.query(
       `update suppliers set archived_at = ${restore ? "null" : "now()"} where id = $1`,
       [id]
     );
+    if (result.rowCount === 0) return false;
     await audit(client, user, restore ? "supplier.restore" : "supplier.archive", "supplier", id);
+    return true;
   });
+  if (!updated) fail("/suppliers", "Supplier not found.");
   done("/suppliers", restore ? "Supplier restored." : "Supplier archived.");
 }
 
@@ -379,6 +378,8 @@ export async function importProductsAction(form: FormData): Promise<void> {
   let updated = 0;
   const errors: string[] = [];
 
+  if (rows.length > 2001) fail(target, "Import at most 2,000 products per file.");
+
   await tx(async (client) => {
     const suppliers = await client.query<{ id: string; name: string }>(
       "select id, name from suppliers where archived_at is null"
@@ -394,6 +395,17 @@ export async function importProductsAction(form: FormData): Promise<void> {
         continue;
       }
 
+      const numbers = parseImportNumbers({
+        unit_cost: value("unit_cost"),
+        unit_price: value("unit_price"),
+        reorder_level: value("reorder_level"),
+        opening_stock: value("opening_stock"),
+      });
+      if (!numbers.ok) {
+        errors.push(`Row ${rowIndex + 1}: ${numbers.error}`);
+        continue;
+      }
+
       const supplierName = value("supplier");
       const supplier = supplierName
         ? suppliers.rows.find((s) => s.name.toLowerCase() === supplierName.toLowerCase())
@@ -403,19 +415,23 @@ export async function importProductsAction(form: FormData): Promise<void> {
         name,
         value("category") || "General",
         value("unit") || "unit",
-        money(Number(value("unit_cost") || 0)),
-        money(Number(value("unit_price") || 0)),
-        Math.max(Math.trunc(Number(value("reorder_level") || 0)), 0),
+        money(numbers.value.unitCost),
+        money(numbers.value.unitPrice),
+        numbers.value.reorderLevel,
         supplier?.id ?? null,
         value("notes") || null,
       ];
 
-      const existing = await client.query<{ id: string }>(
-        "select id from products where lower(sku) = lower($1)",
+      const existing = await client.query<{ id: string; archived_at: string | null }>(
+        "select id, archived_at from products where lower(sku) = lower($1)",
         [sku]
       );
 
       if (existing.rowCount) {
+        if (existing.rows[0].archived_at) {
+          errors.push(`Row ${rowIndex + 1}: ${sku} is archived, skipped`);
+          continue;
+        }
         await client.query(
           `update products set name=$1, category=$2, unit=$3, unit_cost=$4, unit_price=$5,
                   reorder_level=$6, supplier_id=$7, notes=$8
@@ -430,7 +446,7 @@ export async function importProductsAction(form: FormData): Promise<void> {
            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [id, sku, ...params]
         );
-        const opening = Math.trunc(Number(value("opening_stock") || 0));
+        const opening = numbers.value.openingStock;
         if (opening > 0) {
           await client.query(
             `insert into movements (id, product_id, kind, quantity, unit_cost, reason, created_by)
@@ -506,6 +522,8 @@ export async function changePasswordAction(form: FormData): Promise<void> {
     hashPassword(next),
     user.id,
   ]);
+  // Invalidate sessions on other devices, then keep this browser signed in.
+  await rotateSession(user.id);
   await audit(
     { query },
     user,
@@ -514,7 +532,7 @@ export async function changePasswordAction(form: FormData): Promise<void> {
     user.id,
     null
   );
-  done("/settings", "Password updated.");
+  done("/settings", "Password updated. Other devices have been signed out.");
 }
 
 export async function toggleUserAction(form: FormData): Promise<void> {
@@ -523,9 +541,29 @@ export async function toggleUserAction(form: FormData): Promise<void> {
   const active = text(form, "active") === "1";
 
   if (id === owner.id) fail("/settings", "You cannot deactivate your own account.");
-  await query("update users set active = $1 where id = $2", [active, id]);
+  const updated = await one<{ id: string }>(
+    "update users set active = $1 where id = $2 returning id",
+    [active, id]
+  );
+  if (!updated) fail("/settings", "User not found.");
   await audit({ query }, owner, active ? "user.enable" : "user.disable", "user", id);
   done("/settings", active ? "User re-enabled." : "User deactivated.");
+}
+
+/* --------------------------------------------------------------- workspace */
+
+export async function updateWorkspaceAction(form: FormData): Promise<void> {
+  const owner = await requireOwner();
+  const name = text(form, "name");
+  const currency = text(form, "currency").toUpperCase();
+
+  if (name.length < 2) fail("/settings", "Workspace name must be at least 2 characters.");
+  if (name.length > 60) fail("/settings", "Workspace name must be 60 characters or fewer.");
+  if (!isSupportedCurrency(currency)) fail("/settings", "Choose a supported currency.");
+
+  await updateWorkspace(name, currency);
+  await audit({ query }, owner, "workspace.update", "workspace", null, { name, currency });
+  done("/settings", "Workspace updated.");
 }
 
 /* ------------------------------------------------------------------ demo data */

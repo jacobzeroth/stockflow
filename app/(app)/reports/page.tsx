@@ -1,12 +1,11 @@
 import { requireUser } from "@/lib/auth";
 import { getReport, listAudit } from "@/lib/data";
-import { CardHeader, EmptyState, PageHeader, Stat, money, number, when } from "@/components/ui";
+import { getWorkspace } from "@/lib/workspace";
+import { resolveDateRange } from "@/lib/validation";
+import { CardHeader, EmptyState, Flash, PageHeader, Stat, money, number, when } from "@/components/ui";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
-
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export default async function ReportsPage({
   searchParams,
@@ -14,12 +13,14 @@ export default async function ReportsPage({
   searchParams: { from?: string; to?: string };
 }) {
   await requireUser();
-  const today = new Date();
-  const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const from = searchParams.from || isoDate(monthAgo);
-  const to = searchParams.to || isoDate(today);
+  const { from, to, error: dateError } = resolveDateRange(searchParams.from, searchParams.to);
 
-  const [report, audit] = await Promise.all([getReport(from, to), listAudit(12)]);
+  const [report, audit, workspace] = await Promise.all([
+    getReport(from, to),
+    listAudit(12),
+    getWorkspace(),
+  ]);
+  const currency = workspace.currency;
 
   const totals = report.valuation.reduce(
     (sum, row) => ({
@@ -32,6 +33,13 @@ export default async function ReportsPage({
 
   return (
     <div>
+      <div className="print-only mb-4">
+        <p className="text-lg font-semibold">{workspace.name}</p>
+        <p className="text-sm">
+          Inventory report · {from} to {to}
+        </p>
+      </div>
+
       <PageHeader title="Reports" subtitle="Valuation, throughput and the workspace audit trail">
         <a
           href={`/api/export/movements?from=${from}&to=${to}`}
@@ -42,9 +50,12 @@ export default async function ReportsPage({
         <a href="/api/export/products" className="btn-ghost">
           Stock CSV
         </a>
+        <PrintButton label="Print report" />
       </PageHeader>
 
-      <form className="card mb-5 flex flex-wrap items-end gap-3 p-4">
+      <Flash error={dateError} />
+
+      <form className="card mb-5 flex flex-wrap items-end gap-3 p-4 no-print">
         <div>
           <label className="label" htmlFor="from">
             From
@@ -72,7 +83,7 @@ export default async function ReportsPage({
         <Stat label="Ledger entries" value={number(report.movementCount)} hint="In selected range" />
         <Stat
           label="Stock value"
-          value={money(totals.cost)}
+          value={money(totals.cost, currency)}
           hint={`${number(report.activeSkus)} SKUs with stock`}
         />
       </div>
@@ -97,18 +108,18 @@ export default async function ReportsPage({
                   <tr key={row.category} className="border-b border-line/60 last:border-0">
                     <td className="td text-white">{row.category}</td>
                     <td className="td text-right tabular-nums text-muted">{number(row.units)}</td>
-                    <td className="td text-right tabular-nums">{money(row.cost)}</td>
-                    <td className="td text-right tabular-nums text-muted">{money(row.retail)}</td>
+                    <td className="td text-right tabular-nums">{money(row.cost, currency)}</td>
+                    <td className="td text-right tabular-nums text-muted">{money(row.retail, currency)}</td>
                   </tr>
                 ))}
                 <tr className="bg-panel2/60">
                   <td className="td font-semibold text-white">Total</td>
                   <td className="td text-right font-semibold tabular-nums">{number(totals.units)}</td>
                   <td className="td text-right font-semibold tabular-nums text-white">
-                    {money(totals.cost)}
+                    {money(totals.cost, currency)}
                   </td>
                   <td className="td text-right font-semibold tabular-nums text-muted">
-                    {money(totals.retail)}
+                    {money(totals.retail, currency)}
                   </td>
                 </tr>
               </tbody>

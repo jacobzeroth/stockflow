@@ -9,6 +9,7 @@ type Option = {
   sku: string;
   unit: string;
   on_hand: number;
+  unit_cost?: number;
 };
 
 const KINDS = [
@@ -21,10 +22,12 @@ export function MovementForm({
   products,
   defaultProductId,
   returnTo = "/movements",
+  requestId,
 }: {
   products: Option[];
   defaultProductId?: string;
   returnTo?: string;
+  requestId?: string;
 }) {
   const [kind, setKind] = useState("in");
   const [productId, setProductId] = useState(defaultProductId ?? products[0]?.id ?? "");
@@ -34,6 +37,7 @@ export function MovementForm({
     <form action={recordMovementAction} className="card p-4">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="return_to" value={returnTo} />
+      {requestId ? <input type="hidden" name="request_id" value={requestId} /> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -85,6 +89,7 @@ export function MovementForm({
               Counted qty
             </label>
             <input
+              key={`${kind}-${selected?.id ?? "no-product"}`}
               id="counted"
               name="counted"
               type="number"
@@ -101,6 +106,7 @@ export function MovementForm({
               Quantity
             </label>
             <input
+              key={kind}
               id="quantity"
               name="quantity"
               type="number"
@@ -124,8 +130,13 @@ export function MovementForm({
               min="0"
               step="0.01"
               className="input tabular-nums"
-              placeholder="Optional"
+              placeholder={
+                selected?.unit_cost !== undefined
+                  ? `Current ${selected.unit_cost.toFixed(2)}`
+                  : "Optional"
+              }
             />
+            <p className="mt-1 text-[11px] text-muted">Blank keeps the weighted average cost.</p>
           </div>
         ) : null}
 
@@ -134,6 +145,7 @@ export function MovementForm({
             Reason
           </label>
           <input
+            key={kind}
             id="reason"
             name="reason"
             className="input"
@@ -145,7 +157,7 @@ export function MovementForm({
           <label className="label" htmlFor="reference">
             Reference
           </label>
-          <input id="reference" name="reference" className="input" placeholder="PO-1042" />
+          <input key={kind} id="reference" name="reference" className="input" placeholder="PO-1042" />
         </div>
       </div>
 

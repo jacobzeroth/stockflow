@@ -1,4 +1,5 @@
 import { one, query, toNumber } from "./db";
+import { isIsoDate, resolveDateRange } from "./validation";
 import type {
   AuditEntry,
   Movement,
@@ -87,9 +88,11 @@ export async function getProduct(id: string): Promise<Product | null> {
   return row ? mapProduct(row) : null;
 }
 
-export async function listCategories(): Promise<string[]> {
+export async function listCategories(includeArchived = false): Promise<string[]> {
   const rows = await query<{ category: string }>(
-    "select distinct category from products where archived_at is null order by category"
+    `select distinct category from products
+     ${includeArchived ? "" : "where archived_at is null"}
+     order by category`
   );
   return rows.map((row) => row.category);
 }
@@ -129,11 +132,11 @@ export async function listMovements(filter: MovementFilter = {}): Promise<Moveme
     params.push(filter.kind);
     where.push(`m.kind = $${params.length}`);
   }
-  if (filter.from) {
+  if (filter.from && isIsoDate(filter.from)) {
     params.push(filter.from);
     where.push(`m.created_at >= $${params.length}::date`);
   }
-  if (filter.to) {
+  if (filter.to && isIsoDate(filter.to)) {
     params.push(filter.to);
     where.push(`m.created_at < ($${params.length}::date + interval '1 day')`);
   }
@@ -267,7 +270,8 @@ export type ReportData = {
   activeSkus: number;
 };
 
-export async function getReport(from: string, to: string): Promise<ReportData> {
+export async function getReport(fromRaw: string, toRaw: string): Promise<ReportData> {
+  const { from, to } = resolveDateRange(fromRaw, toRaw);
   const [products, movementTotals, topOut] = await Promise.all([
     listProducts(),
     one<{ total_in: string; total_out: string; count: string }>(

@@ -44,7 +44,7 @@ export function Sidebar({ userName, role }: { userName: string; role: string }) 
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-[#0a0c10] lg:flex">
+    <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-[#0a0c10] print-hide lg:flex">
       <div className="flex items-center gap-2.5 px-5 py-5">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-[13px] font-bold text-white">
           Z
@@ -101,7 +101,7 @@ export function Sidebar({ userName, role }: { userName: string; role: string }) 
 export function MobileNav() {
   const pathname = usePathname();
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-line bg-[#0a0c10] px-3 py-2 lg:hidden">
+    <div className="mobile-nav flex items-center gap-1 overflow-x-auto border-b border-line bg-[#0a0c10] px-3 py-2 print-hide lg:hidden">
       {NAV.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
@@ -116,6 +116,11 @@ export function MobileNav() {
           </Link>
         );
       })}
+      <form action={logoutAction} className="ml-auto pl-3">
+        <button className="btn-ghost btn-sm whitespace-nowrap" type="submit">
+          Sign out
+        </button>
+      </form>
     </div>
   );
 }

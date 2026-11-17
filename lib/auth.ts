@@ -1,40 +1,12 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { one, newId, query } from "./db";
+import { one, newId, query, tx } from "./db";
+import { hashPassword, verifyPassword } from "./password";
 import type { Role, User } from "./types";
 
 const COOKIE = "sf_session";
 const SESSION_DAYS = 30;
-const SCRYPT = { N: 16384, r: 8, p: 1 };
-const KEYLEN = 64;
-
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, KEYLEN, {
-    ...SCRYPT,
-    maxmem: 64 * 1024 * 1024,
-  }).toString("hex");
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt}$${hash}`;
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const parts = stored.split("$");
-  if (parts.length !== 6 || parts[0] !== "scrypt") return false;
-  const [, n, r, p, salt, hash] = parts;
-  try {
-    const computed = scryptSync(password, salt, hash.length / 2, {
-      N: Number(n),
-      r: Number(r),
-      p: Number(p),
-      maxmem: 64 * 1024 * 1024,
-    });
-    const expected = Buffer.from(hash, "hex");
-    return computed.length === expected.length && timingSafeEqual(computed, expected);
-  } catch {
-    return false;
-  }
-}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -60,6 +32,11 @@ export async function createSession(userId: string): Promise<void> {
     expires,
   });
   await query("delete from sessions where expires_at < now()");
+}
+
+export async function rotateSession(userId: string): Promise<void> {
+  await query("delete from sessions where user_id = $1", [userId]);
+  await createSession(userId);
 }
 
 export async function destroySession(): Promise<void> {
@@ -125,10 +102,20 @@ export async function insertUser(input: NewUser): Promise<string> {
   return id;
 }
 
-export function passwordProblem(password: string): string | null {
-  if (password.length < 10) return "Password must be at least 10 characters.";
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-    return "Password must contain letters and numbers.";
-  }
-  return null;
+export async function createFirstOwner(input: NewUser): Promise<string | null> {
+  return tx(async (client) => {
+    // Serialise signup so two simultaneous requests cannot both become the owner.
+    await client.query("select pg_advisory_xact_lock($1)", [918273646]);
+    const result = await client.query<{ count: string }>(
+      "select count(*)::text as count from users"
+    );
+    if (Number(result.rows[0]?.count ?? 0) > 0) return null;
+
+    const id = newId();
+    await client.query(
+      "insert into users (id, email, name, password_hash, role) values ($1,$2,$3,$4,$5)",
+      [id, input.email.toLowerCase(), input.name, hashPassword(input.password), input.role]
+    );
+    return id;
+  });
 }

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:local": "node scripts/local-db.mjs"
+    "db:local": "node scripts/local-db.mjs",
+    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/validation.test.mjs tests/password.test.mjs tests/csv.test.mjs tests/stock.test.mjs",
+    "test:db": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/stock-db.test.mjs"
   },
   "dependencies": {
     "next": "14.2.35",

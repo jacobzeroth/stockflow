@@ -2,11 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { STATUS_LABEL, stockStatus } from "@/lib/types";
 import type { Product, StockStatus } from "@/lib/types";
-import { CURRENCY } from "@/lib/config";
+import { DEFAULT_CURRENCY, localeForCurrency } from "@/lib/currency";
 
-export function money(value: number, currency = CURRENCY): string {
+export function money(value: number, currency = DEFAULT_CURRENCY): string {
   try {
-    return new Intl.NumberFormat("en-GB", {
+    return new Intl.NumberFormat(localeForCurrency(currency), {
       style: "currency",
       currency,
       maximumFractionDigits: 2,
@@ -69,7 +69,7 @@ export function PageHeader({
         <h1 className="text-xl font-semibold tracking-tight text-white">{title}</h1>
         {subtitle ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
       </div>
-      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
+      {children ? <div className="flex flex-wrap items-center gap-2 no-print">{children}</div> : null}
     </div>
   );
 }
@@ -109,6 +109,10 @@ export function StatusBadge({ product }: { product: Pick<Product, "on_hand" | "r
     ok: "border-[#1d4d3b] bg-[#0d241c] text-[#7fe0bb]",
   };
   return <span className={`pill ${styles[status]}`}>{STATUS_LABEL[status]}</span>;
+}
+
+export function ArchivedBadge() {
+  return <span className="pill border-line bg-panel2 text-muted">Archived</span>;
 }
 
 export function KindBadge({ kind }: { kind: string }) {

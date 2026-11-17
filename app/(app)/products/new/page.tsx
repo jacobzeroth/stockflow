@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function NewProductPage({
   searchParams,
 }: {
-  searchParams: { error?: string };
+  searchParams: { error?: string; ok?: string };
 }) {
   await requireWriter();
   const suppliers = await listSuppliers();
@@ -23,7 +23,7 @@ export default async function NewProductPage({
         </Link>
       </PageHeader>
 
-      <Flash error={searchParams.error} />
+      <Flash error={searchParams.error} ok={searchParams.ok} />
 
       <div className="card p-5">
         <ProductForm

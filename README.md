@@ -37,7 +37,9 @@ exactly how https://stockflow-html.vercel.app is deployed.
 | **Reorder** | Products at or below their reorder level are grouped by supplier with a suggested quantity, estimated cost, copy-to-clipboard order text and a pre-filled supplier email. |
 | **Reports** | Valuation by category at cost and retail, units received/issued for a date range, top issued products, full audit trail. |
 | **CSV** | Export products, movements (filtered) and the reorder list. Import upserts by SKU; opening stock only applies to newly created products, so re-importing never double counts. |
-| **Auth** | scrypt password hashing, HttpOnly session cookies (SHA-256 token hashes stored server-side, 30-day expiry), roles `owner` / `manager` / `viewer`. |
+| **Auth** | scrypt password hashing, HttpOnly session cookies (SHA-256 token hashes stored server-side, 30-day expiry), roles `owner` / `manager` / `viewer`. Changing a password signs other devices out. |
+| **Workspace** | Name and currency are stored in Postgres and editable by the owner in Settings. INR (₹) is the default; 10 currencies are supported and all money is formatted with the matching locale. |
+| **Duplicate submits** | A form guard blocks a double click, and every movement carries a durable `request_id` with a unique index, so a replayed submission never posts twice. |
 | **Audit** | `audit_log` records who created, edited, archived, imported or reset what. |
 
 ## Stack
@@ -76,8 +78,28 @@ that, more users are invited from **Settings → Team**.
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Postgres connection string (`?sslmode=require` for hosted) |
 | `POSTGRES_URL` | fallback | Accepted if `DATABASE_URL` is absent (Vercel integrations) |
-| `NEXT_PUBLIC_CURRENCY` | no | ISO currency code, default `EUR` |
-| `NEXT_PUBLIC_ORG_NAME` | no | Workspace label in Settings |
+| `NEXT_PUBLIC_CURRENCY` | no | Starting ISO currency code, default `INR`. The value saved in Settings wins. |
+| `NEXT_PUBLIC_ORG_NAME` | no | Starting workspace label, default `Zeroth StockFlow`. Editable in Settings. |
+
+## Tests
+
+```bash
+npm test          # unit tests: validation, passwords, CSV, weighted average (16)
+npm run test:db   # Postgres ledger tests (6), requires TEST_DATABASE_URL
+```
+
+`npm test` needs no database. The database suite uses its own connection string so it can
+never touch production:
+
+```bash
+# PowerShell
+$env:TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:55432/stockflow"
+npm run test:db
+```
+
+It covers receipts, issues, counts, weighted average with a blank cost, two concurrent issues
+that cannot oversell, request-id replay, and archived products rejecting movements. The suite
+creates its own user and products and removes them afterwards.
 
 ## Deployment
 
@@ -91,7 +113,9 @@ Pull the connection string for local work with `npx vercel env pull .env.local`.
 
 Production runs on Neon Postgres (`neon-aquamarine-island`, project `cold-truth-06704243`).
 The tables are created by `ensureSchema()` on the first query, guarded by a Postgres advisory
-lock, so no separate migration step is required.
+lock, so no separate migration step is required. The first request after deploying this
+version also adds `movements.request_id` (with a unique index) and the `workspace` table; the
+DDL is idempotent and safe to run against an existing database.
 
 Beware: `vercel env pull` overwrites `.env.local` with the hosted `DATABASE_URL`. Point
 `DATABASE_URL` back at `postgresql://postgres:postgres@localhost:55432/stockflow` if you want
@@ -103,6 +127,8 @@ Vercel → Account → Login Connections, then run `vercel git connect`.
 
 ## Security notes
 
+- Replace the bootstrap owner account with the real owner before sharing the URL, and use a
+  unique password that has never been posted in a chat or issue tracker.
 - Passwords are never stored or logged in plain text (the prototype kept them in `localStorage`).
 - Session cookies are `HttpOnly`, `SameSite=Lax`, `Secure` in production.
 - Every mutating server action calls `requireUser`/`requireWriter`/`requireOwner` before touching data.

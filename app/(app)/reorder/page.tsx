@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getReorderGroups } from "@/lib/data";
+import { getWorkspace } from "@/lib/workspace";
 import { CardHeader, EmptyState, PageHeader, StatusBadge, money, number } from "@/components/ui";
-import { CopyButton, PrintButton } from "@/components/reorder-actions";
+import { CopyButton } from "@/components/reorder-actions";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,8 @@ function orderText(
 
 export default async function ReorderPage() {
   await requireUser();
-  const groups = await getReorderGroups();
+  const [groups, workspace] = await Promise.all([getReorderGroups(), getWorkspace()]);
+  const currency = workspace.currency;
   const totalItems = groups.reduce((sum, group) => sum + group.items.length, 0);
   const estimated = groups.reduce(
     (sum, group) =>
@@ -66,7 +69,7 @@ export default async function ReorderPage() {
               </p>
             </div>
             <p className="text-sm text-muted">
-              Estimated cost <span className="ml-1 font-semibold text-white">{money(estimated)}</span>
+              Estimated cost <span className="ml-1 font-semibold text-white">{money(estimated, currency)}</span>
             </p>
           </div>
 
@@ -105,7 +108,7 @@ export default async function ReorderPage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted">{money(groupTotal)} est.</span>
+                      <span className="text-xs text-muted">{money(groupTotal, currency)} est.</span>
                       <CopyButton text={text} />
                       {mailto ? (
                         <a href={mailto} className="btn-primary btn-sm">
@@ -151,10 +154,10 @@ export default async function ReorderPage() {
                               {number(suggested)} <span className="text-[11px] font-normal text-muted">{product.unit}</span>
                             </td>
                             <td className="td text-right tabular-nums text-muted">
-                              {money(product.unit_cost)}
+                              {money(product.unit_cost, currency)}
                             </td>
                             <td className="td text-right tabular-nums text-muted">
-                              {money(suggested * product.unit_cost)}
+                              {money(suggested * product.unit_cost, currency)}
                             </td>
                             <td className="td">
                               <StatusBadge product={product} />

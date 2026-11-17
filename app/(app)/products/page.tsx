@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { listCategories, listProducts } from "@/lib/data";
+import { getWorkspace } from "@/lib/workspace";
 import {
+  ArchivedBadge,
   EmptyState,
   Flash,
   PageHeader,
@@ -17,18 +19,22 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { q?: string; category?: string; status?: string; error?: string; ok?: string };
+  searchParams: { q?: string; category?: string; status?: string; archived?: string; error?: string; ok?: string };
 }) {
   const user = await requireUser();
   const viewer = user.role === "viewer";
-  const [products, categories] = await Promise.all([
+  const archived = searchParams.archived === "1";
+  const [products, categories, workspace] = await Promise.all([
     listProducts({
       search: searchParams.q,
       category: searchParams.category,
       status: searchParams.status,
+      includeArchived: archived,
     }),
-    listCategories(),
+    listCategories(archived),
+    getWorkspace(),
   ]);
+  const currency = workspace.currency;
 
   const units = products.reduce((sum, product) => sum + product.on_hand, 0);
   const value = products.reduce((sum, product) => sum + product.on_hand * product.unit_cost, 0);
@@ -38,8 +44,15 @@ export default async function ProductsPage({
       q: searchParams.q ?? "",
       category: searchParams.category ?? "",
       status: searchParams.status ?? "",
+      archived: archived ? "1" : "",
     }).filter(([, value]) => value && value !== "all") as [string, string][]
   ).toString();
+  const archivedHref = `/products?${new URLSearchParams({
+    ...(searchParams.q ? { q: searchParams.q } : {}),
+    ...(searchParams.category ? { category: searchParams.category } : {}),
+    ...(searchParams.status ? { status: searchParams.status } : {}),
+    ...(!archived ? { archived: "1" } : {}),
+  }).toString()}`;
 
   return (
     <div>
@@ -66,8 +79,8 @@ export default async function ProductsPage({
       <Flash error={searchParams.error} ok={searchParams.ok} />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Products listed" value={number(products.length)} hint={`${number(units)} units on hand`} />
-        <Stat label="Stock value" value={money(value)} hint="At weighted average cost" tone="brand" />
+        <Stat label="Products listed" value={number(products.length)} hint={archived ? "Including archived" : `${number(units)} units on hand`} />
+        <Stat label="Stock value" value={money(value, currency)} hint="At weighted average cost" tone="brand" />
         <Stat
           label="Below threshold"
           value={number(attention)}
@@ -102,6 +115,12 @@ export default async function ProductsPage({
         </button>
       </form>
 
+      <div className="mt-2 flex justify-end">
+        <Link href={archivedHref} className="text-xs font-semibold text-[#9db4ff] hover:underline">
+          {archived ? "Hide archived products" : "Show archived products"}
+        </Link>
+      </div>
+
       <div className="card mt-5 overflow-hidden">
         {products.length === 0 ? (
           <EmptyState
@@ -125,14 +144,22 @@ export default async function ProductsPage({
               </thead>
               <tbody>
                 {products.map((product) => (
-                  <tr key={product.id} className="row-hover border-b border-line/60 last:border-0">
+                  <tr
+                    key={product.id}
+                    className={`row-hover border-b border-line/60 last:border-0 ${
+                      product.archived_at ? "opacity-60" : ""
+                    }`}
+                  >
                     <td className="td">
-                      <Link
-                        href={`/products/${product.id}`}
-                        className="font-medium text-white hover:text-[#9db4ff]"
-                      >
-                        {product.name}
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/products/${product.id}`}
+                          className="font-medium text-white hover:text-[#9db4ff]"
+                        >
+                          {product.name}
+                        </Link>
+                        {product.archived_at ? <ArchivedBadge /> : null}
+                      </div>
                       <p className="font-mono text-[11px] text-muted">
                         {product.sku}
                         {product.supplier_name ? ` · ${product.supplier_name}` : ""}
@@ -147,10 +174,10 @@ export default async function ProductsPage({
                       {number(product.reorder_level)}
                     </td>
                     <td className="td text-right tabular-nums text-muted">
-                      {money(product.unit_cost)}
+                      {money(product.unit_cost, currency)}
                     </td>
                     <td className="td text-right tabular-nums">
-                      {money(product.on_hand * product.unit_cost)}
+                      {money(product.on_hand * product.unit_cost, currency)}
                     </td>
                     <td className="td">
                       <StatusBadge product={product} />

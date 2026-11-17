@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { listMovements, listProducts } from "@/lib/data";
+import { isIsoDate } from "@/lib/validation";
 import { MovementForm } from "@/components/movement-form";
 import {
   EmptyState,
@@ -27,13 +28,28 @@ export default async function MovementsPage({
   };
 }) {
   const user = await requireUser();
+  let from = searchParams.from && isIsoDate(searchParams.from) ? searchParams.from : undefined;
+  let to = searchParams.to && isIsoDate(searchParams.to) ? searchParams.to : undefined;
+  let dateError: string | undefined;
+
+  if (
+    (searchParams.from && !isIsoDate(searchParams.from)) ||
+    (searchParams.to && !isIsoDate(searchParams.to))
+  ) {
+    dateError = "Dates were not valid, so the filter ignored them.";
+  }
+  if (from && to && from > to) {
+    [from, to] = [to, from];
+    dateError = "The date range was reversed to keep the filter valid.";
+  }
+
   const [products, movements] = await Promise.all([
     listProducts(),
     listMovements({
       productId: searchParams.product,
       kind: searchParams.kind,
-      from: searchParams.from,
-      to: searchParams.to,
+      from,
+      to,
       limit: 300,
     }),
   ]);
@@ -47,14 +63,14 @@ export default async function MovementsPage({
         <a
           href={`/api/export/movements?product=${searchParams.product ?? ""}&kind=${
             searchParams.kind ?? ""
-          }&from=${searchParams.from ?? ""}&to=${searchParams.to ?? ""}`}
+          }&from=${from ?? ""}&to=${to ?? ""}`}
           className="btn-ghost"
         >
           Export CSV
         </a>
       </PageHeader>
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={searchParams.error ?? dateError} ok={searchParams.ok} />
 
       {user.role !== "viewer" && products.length > 0 ? (
         <MovementForm
@@ -64,8 +80,10 @@ export default async function MovementsPage({
             sku: product.sku,
             unit: product.unit,
             on_hand: product.on_hand,
+            unit_cost: product.unit_cost,
           }))}
           defaultProductId={searchParams.product}
+          requestId={crypto.randomUUID()}
         />
       ) : null}
 
@@ -87,14 +105,14 @@ export default async function MovementsPage({
         <input
           type="date"
           name="from"
-          defaultValue={searchParams.from ?? ""}
+          defaultValue={from ?? ""}
           className="input"
           aria-label="From date"
         />
         <input
           type="date"
           name="to"
-          defaultValue={searchParams.to ?? ""}
+          defaultValue={to ?? ""}
           className="input"
           aria-label="To date"
         />

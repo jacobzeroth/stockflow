@@ -2,14 +2,13 @@
 
 import { redirect } from "next/navigation";
 import {
+  createFirstOwner,
   createSession,
   destroySession,
-  insertUser,
-  passwordProblem,
   userCount,
-  verifyPassword,
 } from "@/lib/auth";
 import { one } from "@/lib/db";
+import { passwordProblem, verifyPassword } from "@/lib/password";
 
 function back(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
@@ -52,10 +51,13 @@ export async function signupAction(formData: FormData): Promise<void> {
   const problem = passwordProblem(password);
   if (problem) back("/signup", problem);
 
-  await insertUser({ name, email, password, role: "owner" });
-  const user = await one<{ id: string }>("select id from users where email = $1", [email]);
-  if (!user) back("/login", "Account could not be created. Try again.");
-  await createSession(user.id);
+  // The advisory lock inside createFirstOwner closes the race between two
+  // simultaneous signups both seeing an empty users table.
+  const id = await createFirstOwner({ name, email, password, role: "owner" });
+  if (!id) {
+    back("/login", "This workspace already has an owner. Sign in, or ask for an invite.");
+  }
+  await createSession(id);
   redirect("/dashboard");
 }
 
