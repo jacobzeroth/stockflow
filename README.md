@@ -4,8 +4,8 @@ Inventory control for small teams. A rebuild of the single-file `zeroth_stockflo
 prototype as a real server-backed application: hashed authentication, a Postgres ledger,
 stock integrity enforced by the database, reorder workflow and CSV import/export.
 
-Live (server build): https://stockflow-kohl-chi.vercel.app — needs `DATABASE_URL`, see
-[Deployment](#deployment).
+Live (server build): https://stockflow-kohl-chi.vercel.app — Neon Postgres, shared across
+devices and browsers. Sign in with your team account.
 
 ## Single-file build
 
@@ -88,6 +88,18 @@ npx vercel --prod
 ```
 
 Pull the connection string for local work with `npx vercel env pull .env.local`.
+
+Production runs on Neon Postgres (`neon-aquamarine-island`, project `cold-truth-06704243`).
+The tables are created by `ensureSchema()` on the first query, guarded by a Postgres advisory
+lock, so no separate migration step is required.
+
+Beware: `vercel env pull` overwrites `.env.local` with the hosted `DATABASE_URL`. Point
+`DATABASE_URL` back at `postgresql://postgres:postgres@localhost:55432/stockflow` if you want
+local development to use the embedded database instead of production.
+
+Pushes to GitHub do not deploy yet — the Vercel account has no GitHub login connection, so
+deploys are run with `vercel --prod`. To switch to git deployments, link GitHub under
+Vercel → Account → Login Connections, then run `vercel git connect`.
 
 ## Security notes
 
