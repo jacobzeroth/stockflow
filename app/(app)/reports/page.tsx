@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: { from?: string; to?: string };
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   await requireUser();
-  const { from, to, error: dateError } = resolveDateRange(searchParams.from, searchParams.to);
+  const sp = await searchParams;
+  const { from, to, error: dateError } = resolveDateRange(sp.from, sp.to);
 
   const [report, audit, workspace] = await Promise.all([
     getReport(from, to),

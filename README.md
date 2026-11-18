@@ -44,9 +44,12 @@ exactly how https://stockflow-html.vercel.app is deployed.
 
 ## Stack
 
-- Next.js 14 (App Router, server actions, server components)
+- Next.js 16 (App Router, server actions, server components, Turbopack builds)
+- React 19
 - Postgres via `pg` (Neon on Vercel)
 - Tailwind CSS
+
+Node.js 20.9 or newer is required by Next.js 16.
 - No ORM: schema is created idempotently on first query, inside an advisory lock
 
 ## Local development

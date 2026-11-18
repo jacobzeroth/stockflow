@@ -24,8 +24,9 @@ function csvResponse(body: string, filename: string): Response {
 
 export async function GET(
   request: Request,
-  { params }: { params: { kind: string } }
+  { params }: { params: Promise<{ kind: string }> }
 ) {
+  const { kind } = await params;
   const user = await getCurrentUser();
   if (!user) {
     return new Response("Sign in to export data.", { status: 401 });
@@ -34,11 +35,11 @@ export async function GET(
   const url = new URL(request.url);
   const stamp = new Date().toISOString().slice(0, 10);
 
-  if (params.kind === "template") {
+  if (kind === "template") {
     return csvResponse(toCsv(TEMPLATE), "stockflow-import-template.csv");
   }
 
-  if (params.kind === "products") {
+  if (kind === "products") {
     const products = await listProducts({
       search: url.searchParams.get("q") ?? undefined,
       category: url.searchParams.get("category") ?? undefined,
@@ -76,7 +77,7 @@ export async function GET(
     return csvResponse(toCsv(rows), `stockflow-products-${stamp}.csv`);
   }
 
-  if (params.kind === "movements") {
+  if (kind === "movements") {
     const movements = await listMovements({
       productId: url.searchParams.get("product") || undefined,
       kind: url.searchParams.get("kind") || undefined,
@@ -103,7 +104,7 @@ export async function GET(
     return csvResponse(toCsv(rows), `stockflow-movements-${stamp}.csv`);
   }
 
-  if (params.kind === "reorder") {
+  if (kind === "reorder") {
     const groups = await getReorderGroups();
     const rows: (string | number | null)[][] = [
       ["supplier", "contact", "email", "sku", "product", "on_hand", "reorder_level", "suggested_qty", "unit", "unit_cost", "line_total"],

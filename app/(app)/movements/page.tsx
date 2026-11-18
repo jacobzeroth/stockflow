@@ -18,23 +18,24 @@ export const dynamic = "force-dynamic";
 export default async function MovementsPage({
   searchParams,
 }: {
-  searchParams: {
+  searchParams: Promise<{
     product?: string;
     kind?: string;
     from?: string;
     to?: string;
     error?: string;
     ok?: string;
-  };
+  }>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
-  let from = searchParams.from && isIsoDate(searchParams.from) ? searchParams.from : undefined;
-  let to = searchParams.to && isIsoDate(searchParams.to) ? searchParams.to : undefined;
+  let from = sp.from && isIsoDate(sp.from) ? sp.from : undefined;
+  let to = sp.to && isIsoDate(sp.to) ? sp.to : undefined;
   let dateError: string | undefined;
 
   if (
-    (searchParams.from && !isIsoDate(searchParams.from)) ||
-    (searchParams.to && !isIsoDate(searchParams.to))
+    (sp.from && !isIsoDate(sp.from)) ||
+    (sp.to && !isIsoDate(sp.to))
   ) {
     dateError = "Dates were not valid, so the filter ignored them.";
   }
@@ -46,8 +47,8 @@ export default async function MovementsPage({
   const [products, movements] = await Promise.all([
     listProducts(),
     listMovements({
-      productId: searchParams.product,
-      kind: searchParams.kind,
+      productId: sp.product,
+      kind: sp.kind,
       from,
       to,
       limit: 300,
@@ -61,8 +62,8 @@ export default async function MovementsPage({
         subtitle="Append-only ledger of every receipt, issue and stock count"
       >
         <a
-          href={`/api/export/movements?product=${searchParams.product ?? ""}&kind=${
-            searchParams.kind ?? ""
+          href={`/api/export/movements?product=${sp.product ?? ""}&kind=${
+            sp.kind ?? ""
           }&from=${from ?? ""}&to=${to ?? ""}`}
           className="btn-ghost"
         >
@@ -70,7 +71,7 @@ export default async function MovementsPage({
         </a>
       </PageHeader>
 
-      <Flash error={searchParams.error ?? dateError} ok={searchParams.ok} />
+      <Flash error={sp.error ?? dateError} ok={sp.ok} />
 
       {user.role !== "viewer" && products.length > 0 ? (
         <MovementForm
@@ -82,13 +83,13 @@ export default async function MovementsPage({
             on_hand: product.on_hand,
             unit_cost: product.unit_cost,
           }))}
-          defaultProductId={searchParams.product}
+          defaultProductId={sp.product}
           requestId={crypto.randomUUID()}
         />
       ) : null}
 
       <form className="card mt-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[1.4fr_140px_150px_150px_auto]">
-        <select name="product" defaultValue={searchParams.product ?? ""} className="input">
+        <select name="product" defaultValue={sp.product ?? ""} className="input">
           <option value="">All products</option>
           {products.map((product) => (
             <option key={product.id} value={product.id}>
@@ -96,7 +97,7 @@ export default async function MovementsPage({
             </option>
           ))}
         </select>
-        <select name="kind" defaultValue={searchParams.kind ?? "all"} className="input">
+        <select name="kind" defaultValue={sp.kind ?? "all"} className="input">
           <option value="all">Any type</option>
           <option value="in">Received</option>
           <option value="out">Issued</option>

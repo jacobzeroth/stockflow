@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: { error?: string };
+  searchParams: Promise<{ error?: string }>;
 }) {
   if (await getCurrentUser()) redirect("/dashboard");
   if ((await userCount()) > 0) redirect("/login");
+  const sp = await searchParams;
 
   return (
     <main className="grid-bg flex min-h-screen items-center justify-center px-4 py-10">
@@ -30,7 +31,7 @@ export default async function SignupPage({
           </p>
 
           <div className="mt-5">
-            <Flash error={searchParams.error} />
+            <Flash error={sp.error} />
           </div>
 
           <form action={signupAction} className="space-y-3">

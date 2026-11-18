@@ -22,8 +22,9 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { error?: string; ok?: string };
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
   const [data, workspace] = await Promise.all([getDashboard(), getWorkspace()]);
   const currency = workspace.currency;
@@ -53,7 +54,7 @@ export default async function DashboardPage({
         ) : null}
       </PageHeader>
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={sp.error} ok={sp.ok} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat

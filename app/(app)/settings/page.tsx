@@ -17,8 +17,9 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { error?: string; ok?: string };
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
   const [users, products, workspace] = await Promise.all([
     listUsers(),
@@ -31,7 +32,7 @@ export default async function SettingsPage({
     <div>
       <PageHeader title="Settings" subtitle="Account, team access and workspace data" />
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={sp.error} ok={sp.ok} />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="card p-5">

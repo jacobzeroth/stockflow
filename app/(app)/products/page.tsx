@@ -19,16 +19,17 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { q?: string; category?: string; status?: string; archived?: string; error?: string; ok?: string };
+  searchParams: Promise<{ q?: string; category?: string; status?: string; archived?: string; error?: string; ok?: string }>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
   const viewer = user.role === "viewer";
-  const archived = searchParams.archived === "1";
+  const archived = sp.archived === "1";
   const [products, categories, workspace] = await Promise.all([
     listProducts({
-      search: searchParams.q,
-      category: searchParams.category,
-      status: searchParams.status,
+      search: sp.q,
+      category: sp.category,
+      status: sp.status,
       includeArchived: archived,
     }),
     listCategories(archived),
@@ -41,16 +42,16 @@ export default async function ProductsPage({
   const attention = products.filter((product) => stockStatus(product) !== "ok").length;
   const query = new URLSearchParams(
     Object.entries({
-      q: searchParams.q ?? "",
-      category: searchParams.category ?? "",
-      status: searchParams.status ?? "",
+      q: sp.q ?? "",
+      category: sp.category ?? "",
+      status: sp.status ?? "",
       archived: archived ? "1" : "",
     }).filter(([, value]) => value && value !== "all") as [string, string][]
   ).toString();
   const archivedHref = `/products?${new URLSearchParams({
-    ...(searchParams.q ? { q: searchParams.q } : {}),
-    ...(searchParams.category ? { category: searchParams.category } : {}),
-    ...(searchParams.status ? { status: searchParams.status } : {}),
+    ...(sp.q ? { q: sp.q } : {}),
+    ...(sp.category ? { category: sp.category } : {}),
+    ...(sp.status ? { status: sp.status } : {}),
     ...(!archived ? { archived: "1" } : {}),
   }).toString()}`;
 
@@ -76,7 +77,7 @@ export default async function ProductsPage({
         )}
       </PageHeader>
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={sp.error} ok={sp.ok} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Products listed" value={number(products.length)} hint={archived ? "Including archived" : `${number(units)} units on hand`} />
@@ -92,11 +93,11 @@ export default async function ProductsPage({
       <form className="card mt-5 grid gap-3 p-4 sm:grid-cols-[1fr_180px_170px_auto]">
         <input
           name="q"
-          defaultValue={searchParams.q ?? ""}
+          defaultValue={sp.q ?? ""}
           className="input"
           placeholder="Search name, SKU or category"
         />
-        <select name="category" defaultValue={searchParams.category ?? "all"} className="input">
+        <select name="category" defaultValue={sp.category ?? "all"} className="input">
           <option value="all">All categories</option>
           {categories.map((category) => (
             <option key={category} value={category}>
@@ -104,7 +105,7 @@ export default async function ProductsPage({
             </option>
           ))}
         </select>
-        <select name="status" defaultValue={searchParams.status ?? "all"} className="input">
+        <select name="status" defaultValue={sp.status ?? "all"} className="input">
           <option value="all">Any status</option>
           <option value="low">Low stock</option>
           <option value="out">Out of stock</option>

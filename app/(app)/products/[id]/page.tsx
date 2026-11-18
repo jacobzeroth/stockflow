@@ -25,11 +25,13 @@ export default async function ProductPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { error?: string; ok?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  const { id } = await params;
+  const sp = await searchParams;
   const user = await requireUser();
-  const product = await getProduct(params.id);
+  const product = await getProduct(id);
   if (!product) notFound();
 
   const [suppliers, movements, workspace] = await Promise.all([
@@ -68,7 +70,7 @@ export default async function ProductPage({
         ) : null}
       </PageHeader>
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={sp.error} ok={sp.ok} />
 
       {product.archived_at ? (
         <div className="mb-5 rounded-lg border border-[#5a481f] bg-[#201c0d] px-4 py-3 text-sm text-[#f6ce74]">

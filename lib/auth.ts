@@ -24,7 +24,8 @@ export async function createSession(userId: string): Promise<void> {
     "insert into sessions (id, user_id, token_hash, expires_at) values ($1,$2,$3,$4)",
     [newId(), userId, hashToken(token), expires.toISOString()]
   );
-  cookies().set(COOKIE, token, {
+  const jar = await cookies();
+  jar.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -40,15 +41,17 @@ export async function rotateSession(userId: string): Promise<void> {
 }
 
 export async function destroySession(): Promise<void> {
-  const token = cookies().get(COOKIE)?.value;
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
   if (token) {
     await query("delete from sessions where token_hash = $1", [hashToken(token)]);
   }
-  cookies().delete(COOKIE);
+  jar.delete(COOKIE);
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const token = cookies().get(COOKIE)?.value;
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   const row = await one<User>(
     `select u.id, u.email, u.name, u.role, u.active, u.created_at

@@ -8,12 +8,13 @@ export const dynamic = "force-dynamic";
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: { edit?: string; error?: string; ok?: string };
+  searchParams: Promise<{ edit?: string; error?: string; ok?: string }>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
   const suppliers = await listSuppliers(true);
-  const editing = searchParams.edit
-    ? suppliers.find((supplier) => supplier.id === searchParams.edit)
+  const editing = sp.edit
+    ? suppliers.find((supplier) => supplier.id === sp.edit)
     : undefined;
   const readOnly = user.role === "viewer";
 
@@ -24,7 +25,7 @@ export default async function SuppliersPage({
         subtitle="Who you buy from, lead times and the products they supply"
       />
 
-      <Flash error={searchParams.error} ok={searchParams.ok} />
+      <Flash error={sp.error} ok={sp.ok} />
 
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <div className="card overflow-hidden">
