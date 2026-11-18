@@ -37,7 +37,7 @@ exactly how https://stockflow-html.vercel.app is deployed.
 | **Reorder** | Products at or below their reorder level are grouped by supplier with a suggested quantity, estimated cost, copy-to-clipboard order text and a pre-filled supplier email. |
 | **Reports** | Valuation by category at cost and retail, units received/issued for a date range, top issued products, full audit trail. |
 | **CSV** | Export products, movements (filtered) and the reorder list. Import upserts by SKU; opening stock only applies to newly created products, so re-importing never double counts. |
-| **Auth** | scrypt password hashing, HttpOnly session cookies (SHA-256 token hashes stored server-side, 30-day expiry), roles `owner` / `manager` / `viewer`. Changing a password signs other devices out. |
+| **Auth** | scrypt password hashing (12+ chars, letters and numbers), HttpOnly session cookies (SHA-256 token hashes stored server-side, 30-day expiry), per-account/IP sign-in throttling, roles `owner` / `manager` / `viewer`. Changing a password signs other devices out. |
 | **Workspace** | Name and currency are stored in Postgres and editable by the owner in Settings. INR (₹) is the default; 10 currencies are supported and all money is formatted with the matching locale. |
 | **Duplicate submits** | A form guard blocks a double click, and every movement carries a durable `request_id` with a unique index, so a replayed submission never posts twice. |
 | **Audit** | `audit_log` records who created, edited, archived, imported or reset what. |
@@ -131,7 +131,11 @@ Vercel → Account → Login Connections, then run `vercel git connect`.
   unique password that has never been posted in a chat or issue tracker.
 - Passwords are never stored or logged in plain text (the prototype kept them in `localStorage`).
 - Session cookies are `HttpOnly`, `SameSite=Lax`, `Secure` in production.
+- Failed sign-ins are throttled in Postgres (20 per account / 100 per IP in 15 minutes), so the
+  limit holds across serverless instances. Unknown emails are hashed too, to avoid timing leaks.
 - Every mutating server action calls `requireUser`/`requireWriter`/`requireOwner` before touching data.
 - Exports require a session.
+- Responses carry CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`, COOP/CORP and a locked-down
+  `Permissions-Policy`. Hosted Postgres connections require a verified TLS certificate.
 - Set a strong password for the owner account — there is no password reset email flow, so keep
   at least two owner accounts if lockout risk matters.

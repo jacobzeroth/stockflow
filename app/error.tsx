@@ -27,8 +27,11 @@ export default function ErrorBoundary({
         <p className="mt-2 text-sm text-muted">
           {missingDb
             ? "StockFlow needs a Postgres connection string in DATABASE_URL. Connect a database in Vercel (Storage → Neon) and redeploy, or set DATABASE_URL locally."
-            : error.message || "An unexpected error occurred."}
+            : "An unexpected error occurred. Try again; if it persists, share the reference below with the workspace owner."}
         </p>
+        {!missingDb && error.digest ? (
+          <p className="mt-3 text-[11px] text-muted">Reference: {error.digest}</p>
+        ) : null}
         <button className="btn-primary mt-5" onClick={reset}>
           Try again
         </button>

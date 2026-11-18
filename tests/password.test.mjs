@@ -21,8 +21,9 @@ test("malformed hashes fail closed", () => {
 });
 
 test("password policy requires length, letters and numbers", () => {
-  assert.match(passwordProblem("short1"), /at least 10/);
-  assert.match(passwordProblem("allletters"), /letters and numbers/);
-  assert.match(passwordProblem("1234567890"), /letters and numbers/);
+  assert.match(passwordProblem("short1"), /at least 12/);
+  assert.match(passwordProblem("founder123"), /at least 12/);
+  assert.match(passwordProblem("alllettersonly"), /letters and numbers/);
+  assert.match(passwordProblem("123456789012"), /letters and numbers/);
   assert.equal(passwordProblem("TestPassword9x"), null);
 });

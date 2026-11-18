@@ -86,6 +86,15 @@ const SCHEMA = [
     created_at timestamptz not null default now()
   )`,
   `create index if not exists audit_created_idx on audit_log (created_at desc)`,
+  `create table if not exists login_attempts (
+    id text primary key,
+    email text not null,
+    ip text,
+    created_at timestamptz not null default now()
+  )`,
+  `create index if not exists login_attempts_email_idx on login_attempts (lower(email), created_at desc)`,
+  `create index if not exists login_attempts_ip_idx on login_attempts (ip, created_at desc)`,
+  `create index if not exists login_attempts_created_idx on login_attempts (created_at)`,
 ];
 
 function connectionString(): string {
@@ -101,14 +110,17 @@ function connectionString(): string {
 export function getPool(): PoolInstance {
   if (!globalForDb.sfPool) {
     const url = connectionString();
+    const local = /localhost|127\.0\.0\.1/i.test(url);
+    const hasSslMode = /[?&]sslmode=/i.test(url);
     globalForDb.sfPool = new Pool({
       connectionString: url,
       max: 4,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 15_000,
-      ssl: /localhost|127\.0\.0\.1/i.test(url)
-        ? undefined
-        : { rejectUnauthorized: false },
+      // Local Postgres runs without TLS. For hosted databases, honour sslmode
+      // from the URL (Neon supplies sslmode=require) and otherwise require a
+      // verified certificate instead of accepting any certificate.
+      ...(local || hasSslMode ? {} : { ssl: { rejectUnauthorized: true } }),
     });
     globalForDb.sfPool.on("error", () => {
       /* keep the pool alive on idle client errors */

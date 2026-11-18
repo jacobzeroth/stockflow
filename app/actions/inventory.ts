@@ -40,9 +40,20 @@ function done(path: string, message: string): never {
   redirect(withFlash(path, "ok", message));
 }
 
+function safeReturnPath(value: string): boolean {
+  if (!value.startsWith("/") || value.startsWith("//")) return false;
+  if (value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) return false;
+  try {
+    const url = new URL(value, "http://stockflow.internal");
+    return url.origin === "http://stockflow.internal";
+  } catch {
+    return false;
+  }
+}
+
 function fromForm(form: FormData, fallback: string): string {
   const value = text(form, "return_to");
-  return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+  return safeReturnPath(value) ? value : fallback;
 }
 
 /* ------------------------------------------------------------------ products */

@@ -142,7 +142,7 @@ export default async function SettingsPage({
                   required
                   minLength={10}
                   className="input"
-                  placeholder="Temporary password (10+ chars)"
+                  placeholder="Temporary password (12+ chars)"
                 />
                 <select name="role" defaultValue="manager" className="input">
                   <option value="manager">Manager — full stock access</option>

@@ -66,7 +66,7 @@ export default async function SignupPage({
                 required
                 minLength={10}
                 className="input"
-                placeholder="At least 10 characters, letters + numbers"
+                placeholder="At least 12 characters, letters + numbers"
               />
             </div>
             <button className="btn-primary w-full" type="submit">
