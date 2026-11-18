@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="sf-mark" x1="10" y1="48" x2="54" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0077FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(-22 32 32)">
+    <rect x="21.5" y="20.5" width="33" height="11" rx="5.5" fill="#F5F7FF"/>
+    <rect x="12.5" y="33.5" width="33" height="11" rx="5.5" fill="url(#sf-mark)"/>
+  </g>
+</svg>

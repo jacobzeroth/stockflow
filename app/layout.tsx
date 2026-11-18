@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { FormGuard } from "@/components/form-guard";
 
@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description:
     "Professional inventory management for small teams: stock ledger, reorder alerts, suppliers and reporting.",
   robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0B0F1A",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

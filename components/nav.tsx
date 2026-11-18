@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth";
+import { LogoMark } from "@/components/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
@@ -46,11 +47,15 @@ export function Sidebar({ userName, role }: { userName: string; role: string }) 
   return (
     <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-[#0a0c10] print-hide lg:flex">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-[13px] font-bold text-white">
-          Z
-        </span>
+        <LogoMark
+          size={34}
+          gradientId="sf-logo-nav"
+          className="drop-shadow-[0_0_12px_rgba(0,119,255,0.32)]"
+        />
         <div className="leading-tight">
-          <p className="text-sm font-semibold text-white">StockFlow</p>
+          <p className="text-sm font-semibold text-white">
+            Stock<span className="logo-flow">Flow</span>
+          </p>
           <p className="text-[10px] uppercase tracking-[0.18em] text-muted">Zeroth</p>
         </div>
       </div>
@@ -101,22 +106,34 @@ export function Sidebar({ userName, role }: { userName: string; role: string }) 
 export function MobileNav() {
   const pathname = usePathname();
   return (
-    <div className="mobile-nav flex items-center gap-1 overflow-x-auto border-b border-line bg-[#0a0c10] px-3 py-2 print-hide lg:hidden">
-      {NAV.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-              active ? "bg-brand/15 text-white ring-1 ring-inset ring-brand/30" : "text-muted"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-      <form action={logoutAction} className="ml-auto pl-3">
+    <div className="mobile-nav flex items-center gap-2 border-b border-line bg-[#0a0c10] px-3 py-2 print-hide lg:hidden">
+      <Link
+        href="/dashboard"
+        aria-label="StockFlow dashboard"
+        className="flex shrink-0 items-center gap-1.5 pr-1"
+      >
+        <LogoMark size={24} gradientId="sf-logo-mobile" />
+        <span className="text-sm font-semibold text-white">
+          Stock<span className="logo-flow">Flow</span>
+        </span>
+      </Link>
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {NAV.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                active ? "bg-brand/15 text-white ring-1 ring-inset ring-brand/30" : "text-muted"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+      <form action={logoutAction} className="shrink-0 pl-1">
         <button className="btn-ghost btn-sm whitespace-nowrap" type="submit">
           Sign out
         </button>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { signupAction } from "@/app/actions/auth";
 import { getCurrentUser, userCount } from "@/lib/auth";
 import { Flash } from "@/components/ui";
+import { LogoLockup } from "@/components/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +18,8 @@ export default async function SignupPage({
   return (
     <main className="grid-bg flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-7 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-sm font-bold text-white">
-            Z
-          </span>
-          <div>
-            <p className="text-base font-semibold tracking-tight text-white">StockFlow</p>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-muted">Zeroth</p>
-          </div>
+        <div className="mb-7">
+          <LogoLockup gradientId="sf-logo-signup" />
         </div>
 
         <div className="card p-6">

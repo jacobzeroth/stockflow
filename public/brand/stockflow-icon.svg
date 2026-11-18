@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="sf-icon-mark" x1="10" y1="48" x2="54" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0077FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="sf-icon-edge" x1="4" y1="60" x2="60" y2="4" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0077FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#0B0F1A"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="14.25" stroke="url(#sf-icon-edge)" stroke-opacity="0.6" stroke-width="1.5"/>
+  <g transform="rotate(-22 32 32)">
+    <rect x="21.5" y="20.5" width="33" height="11" rx="5.5" fill="#F5F7FF"/>
+    <rect x="12.5" y="33.5" width="33" height="11" rx="5.5" fill="url(#sf-icon-mark)"/>
+  </g>
+</svg>

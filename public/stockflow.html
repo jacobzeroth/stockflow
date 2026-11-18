@@ -10,7 +10,7 @@
   :root{
     color-scheme: dark;
     --ink:#08090c; --panel:#0f1218; --panel2:#141922; --line:#232a35;
-    --text:#e8edf5; --muted:#8b97a8; --brand:#164BFF;
+    --text:#e8edf5; --muted:#8b97a8; --brand:#0077FF; --flow:#8B5CF6;
     --ok:#35d39a; --warn:#f2c14e; --bad:#ff6b6b;
   }
   *{box-sizing:border-box}
@@ -31,7 +31,7 @@
   .app{min-height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
   .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;border-right:1px solid var(--line);background:#0a0c10}
   .brand{display:flex;align-items:center;gap:10px;padding:20px 18px}
-  .brand .mark{width:32px;height:32px;border-radius:9px;background:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+  .brand .mark{width:32px;height:32px;display:grid;place-items:center}
   .brand b{display:block;font-size:14px;color:#fff;letter-spacing:-.01em}
   .brand span{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .nav{flex:1;padding:4px 10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
@@ -141,7 +141,7 @@
     background-size:auto,48px 48px,48px 48px}
   .authbox{width:100%;max-width:390px}
   .authbrand{display:flex;align-items:center;gap:11px;margin-bottom:26px}
-  .authbrand .mark{width:40px;height:40px;border-radius:11px;background:var(--brand);display:grid;place-items:center;font-weight:700;color:#fff}
+  .authbrand .mark{width:40px;height:40px;display:grid;place-items:center}
   .authcard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:22px;box-shadow:0 30px 60px -40px #000}
   .authcard h1{font-size:17px;font-weight:600;color:#fff;margin-bottom:4px}
   .authcard .lede{font-size:13px;color:var(--muted);margin-bottom:18px}
@@ -897,7 +897,7 @@ function shell(active, inner) {
   return '' +
     '<div class="app">' +
       '<aside class="sidebar">' +
-        '<div class="brand"><div class="mark">SF</div><div style="min-width:0">' +
+        '<div class="brand"><div class="mark">' + logoMark(32) + '</div><div style="min-width:0">' +
           "<b>" + esc(state.db.settings.org) + "</b><span>StockFlow</span>" +
         "</div></div>" +
         '<nav class="nav" aria-label="Sections">' + nav + "</nav>" +
@@ -953,8 +953,19 @@ function notFound(title, body, backHref, backLabel) {
 }
 
 /* -------------------------------------------------------------------- auth */
+function logoMark(size) {
+  var s = size || 32;
+  return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 64 64" fill="none" aria-hidden="true">' +
+    '<defs><linearGradient id="sf-mark-grad" x1="10" y1="48" x2="54" y2="16" gradientUnits="userSpaceOnUse">' +
+    '<stop stop-color="#0077FF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>' +
+    '<g transform="rotate(-22 32 32)">' +
+    '<rect x="21.5" y="20.5" width="33" height="11" rx="5.5" fill="#F5F7FF"/>' +
+    '<rect x="12.5" y="33.5" width="33" height="11" rx="5.5" fill="url(#sf-mark-grad)"/>' +
+    "</g></svg>";
+}
+
 function authBrand() {
-  return '<div class="authbrand"><div class="mark">SF</div><div>' +
+  return '<div class="authbrand"><div class="mark">' + logoMark(40) + '</div><div>' +
     '<b style="display:block;color:#fff;font-size:14px;letter-spacing:-.01em">' + esc(state.db.settings.org) + "</b>" +
     '<span style="display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)">Inventory control</span>' +
     "</div></div>";
@@ -2273,7 +2284,7 @@ function showFatal(message) {
   var root = $("#root");
   if (!root) return;
   root.innerHTML = '<div class="auth"><div class="authbox">' +
-    '<div class="authbrand"><div class="mark">SF</div><div><b style="display:block;color:#fff;font-size:14px">StockFlow</b>' +
+    '<div class="authbrand"><div class="mark">' + logoMark(40) + '</div><div><b style="display:block;color:#fff;font-size:14px">StockFlow</b>' +
       '<span style="display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)">Inventory control</span></div></div>' +
     '<div class="authcard">' +
       "<h1>StockFlow could not start</h1>" +
